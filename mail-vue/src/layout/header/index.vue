@@ -21,55 +21,58 @@
       <button class="notice icon-item" :aria-label="copy.notice" :title="copy.notice" @click="openNotice">
         <Icon icon="lucide:megaphone" width="19" height="19" />
       </button>
-      <el-dropdown trigger="click" @visible-change="e => userInfoShow = e" :teleported="false" popper-class="detail-dropdown">
-        <button class="avatar" :aria-label="copy.profile + userStore.user.email" :aria-expanded="userInfoShow">
+      <el-tooltip ref="accountPopover" trigger="click" effect="light" placement="bottom-end" role="dialog" :aria-label="copy.accountCard" @before-show="userInfoShow = true" @before-hide="userInfoShow = false" @show="focusAccountCard" :teleported="false" :show-arrow="false" :hide-after="0" popper-class="detail-dropdown">
+        <button ref="accountTrigger" class="avatar" :aria-label="copy.profile + userStore.user.email" :aria-expanded="userInfoShow" aria-haspopup="dialog">
           <div class="avatar-text">
             <div>{{ formatName(userStore.user.email) }}</div>
           </div>
           <Icon class="setting-icon" icon="lucide:chevron-down" width="14" height="14"/>
         </button>
-        <template #dropdown>
-          <div class="user-details">
-            <div class="details-avatar">
-              {{ formatName(userStore.user.email) }}
-            </div>
-            <div class="user-name">
-              {{ userStore.user.name }}
-            </div>
-            <div class="detail-email" @click="copyEmail(userStore.user.email)">
-              {{ userStore.user.email }}
-            </div>
-            <div class="detail-user-type">
-              <el-tag>{{ userStore.user.role.name }}</el-tag>
-            </div>
-            <div class="action-info">
-              <div>
-                <span style="margin-right: 10px">{{ $t('sendCount') }}</span>
-                <span style="margin-right: 10px">{{ $t('accountCount') }}</span>
-              </div>
-              <div>
-                <div>
-                  <span v-if="sendCount" style="margin-right: 5px">{{ sendCount }}</span>
-                  <el-tag v-if="!hasPerm('email:send')">{{ sendType }}</el-tag>
-                  <el-tag v-else>{{ sendType }}</el-tag>
-                </div>
-                <div>
-                  <el-tag v-if="settingStore.settings.manyEmail || settingStore.settings.addEmail">
-                    {{ $t('disabled') }}
-                  </el-tag>
-                  <span v-else-if="accountCount && hasPerm('account:add')"
-                        style="margin-right: 5px">{{ $t('totalUserAccount', {msg: accountCount}) }}</span>
-                  <el-tag v-else-if="!accountCount && hasPerm('account:add')">{{ $t('unlimited') }}</el-tag>
-                  <el-tag v-else-if="!hasPerm('account:add')">{{ $t('unauthorized') }}</el-tag>
+        <template #content>
+          <section class="user-details" @keydown.esc.stop.prevent="closeAccountCard">
+            <div class="profile-summary">
+              <div class="profile-identity">
+                <div class="details-avatar" aria-hidden="true">{{ formatName(userStore.user.email) }}</div>
+                <div class="identity-copy">
+                  <span class="profile-caption">{{ copy.accountCard }}</span>
+                  <div class="identity-name">
+                    <strong class="user-name" :title="userStore.user.name">{{ userStore.user.name || formatName(userStore.user.email) }}</strong>
+                    <span class="role-badge" :title="roleName"><Icon icon="lucide:shield-check" width="12" />{{ roleName }}</span>
+                  </div>
                 </div>
               </div>
+              <button ref="copyAddressButton" class="detail-email" :title="copy.copyAddress" :aria-label="copy.copyAddress + ' ' + userStore.user.email" @click="copyEmail(userStore.user.email)">
+                <Icon icon="lucide:at-sign" width="15" aria-hidden="true" />
+                <span>{{ userStore.user.email }}</span>
+                <Icon icon="lucide:copy" width="15" aria-hidden="true" />
+              </button>
             </div>
-            <div class="logout">
-              <el-button type="primary" :loading="logoutLoading" @click="clickLogout">{{ $t('logOut') }}</el-button>
+            <div class="profile-allowances">
+              <span class="profile-caption">{{ copy.allowances }}</span>
+              <div class="allowance-row">
+                <span class="allowance-icon"><Icon icon="lucide:send" width="17" /></span>
+                <div class="allowance-label">
+                  <span>{{ copy.sending }}</span>
+                  <small v-if="sendCount">{{ userStore.user.role.sendType === 'day' ? copy.dailyUsage : copy.totalUsage }}</small>
+                </div>
+                <div class="allowance-value">
+                  <strong v-if="sendCount">{{ sendCount }}</strong>
+                  <span v-else class="allowance-status" :class="{ unavailable: sendUnavailable }">{{ sendType }}</span>
+                </div>
+              </div>
+              <div class="allowance-row">
+                <span class="allowance-icon"><Icon icon="lucide:inbox" width="17" /></span>
+                <span class="allowance-label">{{ copy.addresses }}</span>
+                <span class="allowance-status" :class="{ unavailable: accountUnavailable }">{{ accountAllowance }}</span>
+              </div>
             </div>
-          </div>
+            <div class="profile-actions">
+              <button class="profile-action settings-action" @click="openAccountSettings"><Icon icon="lucide:sliders-horizontal" width="16" />{{ copy.accountSettings }}</button>
+              <el-button class="profile-action logout-action" :loading="logoutLoading" @click="clickLogout"><Icon v-if="!logoutLoading" icon="lucide:log-out" width="16" />{{ $t('logOut') }}</el-button>
+            </div>
+          </section>
         </template>
-      </el-dropdown>
+      </el-tooltip>
     </div>
   </div>
 </template>
@@ -98,6 +101,9 @@ const userStore = useUserStore();
 const uiStore = useUiStore();
 const logoutLoading = ref(false)
 const userInfoShow = ref(false)
+const accountPopover = ref()
+const accountTrigger = ref()
+const copyAddressButton = ref()
 const brandTitle = computed(() => settingStore.settings.title || 'Omi Mail')
 const currentAddress = computed(() => accountStore.currentAccount.email || userStore.user.email || '')
 
@@ -106,13 +112,19 @@ const copy = computed(() => locale.value.startsWith('en') ? {
   notice: 'Announcements', profile: 'Account: ', inbox: 'Letters find their home here.',
   allMail: 'Browse and filter all mail.',
   sent: 'Letters on their way.', draft: 'A letter in the making.', star: 'Letters worth keeping close.',
-  setting: 'Arrange your little post office.', management: 'Your domains, addresses and people.'
+  setting: 'Arrange your little post office.', management: 'Your domains, addresses and people.',
+  accountCard: 'Your account', allowances: 'USAGE & ACCESS', sending: 'Sending', addresses: 'Mailboxes',
+  dailyUsage: 'Used today / daily limit', totalUsage: 'Used / total limit', copyAddress: 'Copy email address',
+  accountSettings: 'Account settings', adminRole: 'Admin', mailboxLimit: count => `Up to ${count} mailboxes`
 } : {
   navigation: '切换导航栏', compose: '写邮件', light: '切换浅色模式', dark: '切换深色模式',
   notice: '查看公告', profile: '账号：', inbox: '每一封来信，都有归处。',
   allMail: '集中查看与筛选全部邮件',
   sent: '寄出的心意，都留在这里。', draft: '一封信，正在酝酿。', star: '值得珍藏的信，随手可见。',
-  setting: '布置你的专属邮局。', management: '管理你的域名、地址与成员。'
+  setting: '布置你的专属邮局。', management: '管理你的域名、地址与成员。',
+  accountCard: '我的账号', allowances: '使用权限', sending: '邮件发送', addresses: '邮箱添加',
+  dailyUsage: '今日已用 / 每日额度', totalUsage: '累计已用 / 总额度', copyAddress: '复制邮箱地址',
+  accountSettings: '账号设置', adminRole: '管理员', mailboxLimit: count => `最多 ${count} 个邮箱`
 })
 const pageDescription = computed(() => {
   const name = route.meta.name
@@ -127,7 +139,15 @@ const pageDescription = computed(() => {
 
 
 const accountCount = computed(() => {
-  return userStore.user.role.accountCount
+  return Number(userStore.user.role.accountCount) || 0
+})
+const roleName = computed(() => userStore.user.role.name === 'admin' ? copy.value.adminRole : userStore.user.role.name)
+const sendUnavailable = computed(() => settingStore.settings.send === 1 || !hasPerm('email:send') || userStore.user.role.sendType === 'ban')
+const accountUnavailable = computed(() => !!(settingStore.settings.manyEmail || settingStore.settings.addEmail) || !hasPerm('account:add'))
+const accountAllowance = computed(() => {
+  if (settingStore.settings.manyEmail || settingStore.settings.addEmail) return t('disabled')
+  if (!hasPerm('account:add')) return t('unauthorized')
+  return accountCount.value ? copy.value.mailboxLimit(accountCount.value) : t('unlimited')
 })
 
 const sendType = computed(() => {
@@ -148,7 +168,7 @@ const sendType = computed(() => {
     return t('sendInternal')
   }
 
-  if (!userStore.user.role.sendCount) {
+  if (!Number(userStore.user.role.sendCount)) {
     return t('unlimited')
   }
 
@@ -176,15 +196,15 @@ const sendCount = computed(() => {
     return null
   }
 
-  if (!userStore.user.role.sendCount) {
+  if (!Number(userStore.user.role.sendCount)) {
     return null
   }
 
   if (settingStore.settings.send === 1) {
     return null
   }
-
-  return userStore.user.sendCount + '/' + userStore.user.role.sendCount
+  if (userStore.user.role.sendType === 'internal') return null
+  return `${Number(userStore.user.sendCount) || 0} / ${Number(userStore.user.role.sendCount)}`
 })
 
 async function copyEmail(email) {
@@ -258,6 +278,20 @@ function changeAside() {
   uiStore.asideShow = !uiStore.asideShow
 }
 
+function openAccountSettings() {
+  accountPopover.value?.hide()
+  router.push({name: 'setting'})
+}
+
+function focusAccountCard() {
+  copyAddressButton.value?.focus()
+}
+
+function closeAccountCard() {
+  accountPopover.value?.hide()
+  accountTrigger.value?.focus()
+}
+
 function clickLogout() {
   logoutLoading.value = true
   logout().then(() => {
@@ -274,104 +308,44 @@ function formatName(email) {
 
 </script>
 <style>
-.detail-dropdown {
-  color: var(--el-text-color-primary) !important;
+.detail-dropdown.el-popper {
+  width: min(320px, calc(100vw - 24px));
+  padding: 0;
+  color: var(--mail-text);
+  background: var(--mail-surface);
+  border: 1px solid var(--mail-border);
+  border-radius: 18px;
+  box-shadow: 0 14px 40px #102f3026, 0 3px 10px #102f300c;
+  overflow: hidden;
 }
 </style>
 <style lang="scss" scoped>
-
-:deep(.el-popper.is-pure) {
-  border-radius: 6px;
-}
-
 .user-details {
-  width: 250px;
-  font-size: 14px;
-  display: grid;
-  grid-template-columns: 1fr;
-  justify-items: center;
-
-  .user-name {
-    font-weight: bold;
-    margin-top: 10px;
-    padding-left: 20px;
-    padding-right: 20px;
-    width: 250px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    text-align: center;
-  }
-
-  .detail-user-type {
-    margin-top: 10px;
-  }
-
-  .action-info {
-    width: 100%;
-    display: grid;
-    grid-template-columns: auto auto;
-    margin-top: 10px;
-
-    > div:first-child {
-      display: grid;
-      align-items: center;
-      gap: 10px;
-    }
-
-    > div:last-child {
-      display: grid;
-      gap: 10px;
-      text-align: center;
-
-      > div {
-        display: flex;
-        align-items: center;
-      }
-    }
-  }
-
-  .detail-email {
-    padding-left: 20px;
-    padding-right: 20px;
-    width: 250px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    text-align: center;
-    color: var(--regular-text-color);
-    cursor: pointer;
-  }
-
-  .logout {
-    margin-top: 20px;
-    width: 100%;
-    padding-left: 10px;
-    padding-right: 10px;
-    padding-bottom: 10px;
-
-    .el-button {
-      border-radius: 6px;
-      height: 28px;
-      width: 100%;
-    }
-  }
-
-  .details-avatar {
-    margin-top: 20px;
-    height: 40px;
-    width: 40px;
-    background: var(--el-bg-color);
-    color: var(--el-text-color-primary);
-    border: 1px solid var(--dark-border);
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-  }
+  width: 100%;
+  max-height: calc(100dvh - 100px);
+  overflow-y: auto;
+  font-size: 13px;
+  text-align: left;
 }
-
+.profile-summary { padding: 16px 18px 8px; background: linear-gradient(135deg, var(--base-fill), var(--mail-surface) 85%); }
+.profile-identity { display: flex; align-items: center; gap: 12px; }
+.details-avatar { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 14px; color: var(--mail-accent); background: var(--el-color-primary-light-9); border: 1px solid var(--el-color-primary-light-7); font-size: 21px; font-weight: 600; }
+.identity-copy { min-width: 0; flex: 1; display: grid; gap: 4px; }
+.profile-caption { color: var(--mail-muted); font-size: 10px; font-weight: 550; letter-spacing: .5px; }
+.identity-name { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; }
+.user-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mail-text); font-size: 17px; font-weight: 650; line-height: 1.3; }
+.role-badge { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; padding: 2px 6px; border-radius: 6px; color: var(--mail-accent); background: var(--el-color-primary-light-9); font-size: 10px; overflow-wrap: anywhere; }
+.detail-email { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 4px; padding: 7px 2px; border-radius: 8px; color: var(--el-text-color-regular); cursor: pointer; text-align: left; transition: color .15s, background .15s; > svg { flex-shrink: 0; color: var(--mail-muted); } > span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; } &:hover { color: var(--mail-accent); background: var(--base-fill); > svg { color: var(--mail-accent); } } }
+.profile-allowances { padding: 10px 18px 12px; border-top: 1px solid var(--mail-border); > .profile-caption { display: block; margin-bottom: 6px; } }
+.allowance-row { display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 4px 0; + .allowance-row { margin-top: 2px; } }
+.allowance-icon { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px; color: var(--mail-muted); background: var(--base-fill); }
+.allowance-label { display: grid; gap: 2px; flex: 1; min-width: 0; color: var(--mail-text); font-size: 12px; small { color: var(--mail-muted); font-size: 10px; } }
+.allowance-value { text-align: right; flex-shrink: 0; strong { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--mail-text); } }
+.allowance-status { max-width: 135px; padding: 3px 8px; border-radius: 7px; color: var(--mail-accent); background: var(--el-color-primary-light-9); font-size: 11px; overflow-wrap: anywhere; text-align: right; &.unavailable { color: var(--el-text-color-secondary); background: var(--base-fill); } }
+.profile-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 9px; padding: 10px 14px 12px; border-top: 1px solid var(--mail-border); }
+.profile-action { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; min-height: 44px; height: auto; margin: 0; padding: 9px 8px; border-radius: 10px; border: 1px solid var(--mail-border); background: var(--mail-surface); font-size: 12px; cursor: pointer; white-space: normal; line-height: 1.3; }
+.settings-action { color: var(--el-text-color-regular); &:hover { color: var(--mail-accent); background: var(--base-fill); } }
+.logout-action { color: var(--el-color-danger); :deep(> span) { display: flex; align-items: center; justify-content: center; gap: 7px; } &:hover { border-color: var(--el-color-danger-light-5); color: var(--el-color-danger); background: var(--el-color-danger-light-9); } }
 
 .header {
   display: flex;
@@ -406,16 +380,22 @@ function formatName(email) {
   align-items: center;
   gap: 8px;
   margin-left: 7px;
+  padding: 3px 4px;
+  border-radius: 12px;
   cursor: pointer;
   color: var(--mail-muted);
+  transition: background .15s;
+  &:hover, &[aria-expanded="true"] { background: var(--base-fill); }
+  .setting-icon { transition: transform .15s; }
+  &[aria-expanded="true"] .setting-icon { transform: rotate(180deg); }
   .avatar-text {
     width: 34px;
     height: 34px;
     display: grid;
     place-items: center;
     border-radius: 50%;
-    background: #f3e8d6;
-    color: #7c6440;
+    background: var(--el-color-primary-light-9);
+    color: var(--mail-accent);
     font-size: 13px;
     font-weight: 600;
     border: 3px solid var(--mail-surface);
