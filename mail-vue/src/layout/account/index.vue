@@ -3,7 +3,7 @@
     <div class="account-heading">
       <div class="heading-label">
         <span class="eyebrow">{{ copy.workspace }}</span>
-        <h2>{{ copy.myMailboxes }}</h2>
+        <h2>{{ copy.myMailboxes }}<span v-if="noLoading" class="mailbox-count" :aria-label="accounts.length + ' ' + copy.mailboxCount">{{ accounts.length }}</span></h2>
       </div>
       <button class="icon-button refresh" type="button" :title="copy.refresh" :aria-label="copy.refresh"
               :disabled="loading || followLoading" @click="refresh">
@@ -27,28 +27,28 @@
               <span class="account-prefix">{{ emailParts(item.email).prefix }}</span>
               <span class="account-domain">@{{ emailParts(item.email).domain }}</span>
             </span>
-            <Icon v-if="accountStore.currentAccountId === item.accountId" class="selected-check" icon="lucide:check" width="16" height="16"/>
+            <span v-if="accountStore.currentAccountId === item.accountId" class="selected-check" aria-hidden="true"><Icon icon="lucide:check" width="12" height="12"/></span>
           </button>
           <div class="account-actions">
-            <button class="receive-mode" :class="{'receive-all': item.allReceive}" type="button"
-                    :title="item.allReceive ? copy.aggregateOn : copy.aggregateOff"
-                    :aria-pressed="Boolean(item.allReceive)" :disabled="allReceiveLoading !== null" @click="setAllReceive(item)">
+            <span class="receive-mode" :class="{'receive-all': item.allReceive}"
+                  :title="item.allReceive ? copy.aggregateOn : copy.aggregateOff">
               <Icon :icon="item.allReceive ? 'lucide:layers' : 'lucide:inbox'" width="14" height="14"/>
               <span>{{ item.allReceive ? copy.aggregate : copy.individual }}</span>
-            </button>
+            </span>
             <div class="settings">
               <button class="icon-button" type="button" :title="copy.copyAddress" :aria-label="copy.copyAddress + ' ' + item.email" @click="copyAccount(item.email)">
                 <Icon icon="lucide:copy" width="15" height="15"/>
               </button>
-              <el-dropdown v-if="!showNullSetting(item)" trigger="click">
+              <el-dropdown trigger="click">
                 <button class="icon-button" type="button" :title="copy.mailboxOptions" :aria-label="copy.mailboxOptions + ' ' + item.email">
                   <Icon icon="lucide:ellipsis" width="17" height="17"/>
                 </button>
                 <template #dropdown>
                   <el-dropdown-menu>
+                    <el-dropdown-item :disabled="allReceiveLoading !== null" @click="setAllReceive(item)">{{ item.allReceive ? copy.switchIndividual : copy.switchAggregate }}</el-dropdown-item>
                     <el-dropdown-item v-if="hasPerm('email:send')" @click="openSetName(item)">{{ $t('rename') }}</el-dropdown-item>
                     <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId" @click="setAsTop(item, index)">{{ $t('pin') }}</el-dropdown-item>
-                    <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId && hasPerm('account:delete')" @click="remove(item)">{{ $t('delete') }}</el-dropdown-item>
+                    <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId && hasPerm('account:delete')" divided @click="remove(item)">{{ $t('delete') }}</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -67,7 +67,7 @@
           <template #template><el-skeleton-item variant="text" style="width: 75%"/></template>
         </el-skeleton>
         <div class="list-footnote" v-if="noLoading && accounts.length > 0">
-          <span class="footnote-line"></span>{{ copy.mailboxesEnd }}<span class="footnote-line"></span>
+          <Icon icon="lucide:check" width="12" height="12"/>{{ copy.mailboxesEnd }}
         </div>
         <div class="empty-mailboxes" v-if="noLoading && accounts.length === 0">
           <Icon icon="lucide:mail-plus" width="30" height="30"/>
@@ -137,15 +137,17 @@ const visibleDomains = computed(() => domainList.value.slice(0, 4))
 const copy = computed(() => locale.value.startsWith('zh') ? {
   workspace: '邮箱空间', myMailboxes: '我的邮箱', refresh: '刷新邮箱', closeMailboxes: '关闭邮箱列表',
   copyAddress: '复制邮箱地址', mailboxOptions: '邮箱选项', individual: '独立收件', aggregate: '汇总收件',
-  aggregateOn: '当前汇总全部邮箱的邮件；点击切换到独立收件', aggregateOff: '当前仅显示此邮箱的邮件；点击汇总全部邮箱',
-  mailboxesEnd: '每个地址，都有自己的空间', noMailboxes: '还没有邮箱地址', availableDomains: '可用域名',
+  aggregateOn: '显示全部邮箱的邮件，可在更多选项中切换', aggregateOff: '仅显示此邮箱的邮件，可在更多选项中切换',
+  switchIndividual: '切换为独立收件', switchAggregate: '汇总全部邮箱的邮件', mailboxCount: '个邮箱',
+  mailboxesEnd: '已显示全部邮箱', noMailboxes: '还没有邮箱地址', availableDomains: '可用域名',
   newMailboxHint: '选一个邮箱前缀和域名，为不同用途创建专属地址。', addressPrefix: '邮箱前缀',
   prefixPlaceholder: '例如 hello', domain: '选择域名'
 } : {
   workspace: 'Your workspace', myMailboxes: 'My mailboxes', refresh: 'Refresh mailboxes', closeMailboxes: 'Close mailbox list',
   copyAddress: 'Copy address', mailboxOptions: 'Mailbox options', individual: 'This mailbox', aggregate: 'All mailboxes',
-  aggregateOn: 'Showing mail from all your mailboxes. Click to show this mailbox only.', aggregateOff: 'Showing this mailbox only. Click to show all your mailboxes.',
-  mailboxesEnd: 'A place for every address', noMailboxes: 'No mailboxes yet', availableDomains: 'Available domains',
+  aggregateOn: 'Showing all mailboxes. Change this in mailbox options.', aggregateOff: 'Showing this mailbox only. Change this in mailbox options.',
+  switchIndividual: 'Show this mailbox only', switchAggregate: 'Show all mailboxes', mailboxCount: 'mailboxes',
+  mailboxesEnd: 'All mailboxes shown', noMailboxes: 'No mailboxes yet', availableDomains: 'Available domains',
   newMailboxHint: 'Choose a prefix and a domain to create an address for any part of your day.', addressPrefix: 'Address prefix',
   prefixPlaceholder: 'e.g. hello', domain: 'Choose a domain'
 })
@@ -296,10 +298,6 @@ async function setAllReceive(account) {
   }
 }
 
-
-function showNullSetting(item) {
-  return !hasPerm('email:send') && !(item.accountId !== userStore.user.account.accountId && hasPerm('account:delete'))
-}
 
 function itemBg(accountId) {
   return accountStore.currentAccountId === accountId ? 'item-choose' : ''
@@ -531,37 +529,42 @@ function submit() {
   background: var(--mail-surface, var(--el-bg-color));
   color: var(--mail-text, var(--el-text-color-primary));
 }
-.account-heading { display: flex; align-items: center; gap: 5px; padding: 24px 18px 17px; }
+.account-heading { display: flex; align-items: center; gap: 5px; padding: 22px 16px 16px; }
 .heading-label { flex: 1; min-width: 0; }
 .eyebrow { display: block; font-size: 10px; letter-spacing: 1.5px; color: var(--mail-muted); text-transform: uppercase; margin-bottom: 5px; }
-h2 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 650; letter-spacing: .1px; }
+h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; line-height: 24px; font-weight: 650; letter-spacing: .1px; }
+.mailbox-count { display: grid; place-items: center; min-width: 21px; height: 21px; padding: 0 5px; border-radius: 7px; background: var(--mail-canvas); color: var(--regular-text-color); font-size: 11px; font-weight: 550; font-variant-numeric: tabular-nums; }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 29px; height: 29px; padding: 0; border-radius: 7px; color: var(--mail-muted); cursor: pointer; transition: color .16s, background .16s; }
 .icon-button:hover { background: var(--mail-canvas); color: var(--mail-accent); }
 .icon-button:disabled { opacity: .5; cursor: wait; }
 .drawer-close { display: none; }
-.add-mailbox { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 16px 15px; padding: 10px 12px; border: 1px dashed var(--mail-border); border-radius: 9px; color: var(--mail-muted); font-size: 12px; font-weight: 550; cursor: pointer; transition: border-color .16s, color .16s, background .16s; }
-.add-mailbox:hover { color: var(--mail-accent); border-color: var(--mail-accent); background: color-mix(in srgb, var(--mail-accent) 5%, var(--mail-surface)); }
+.add-mailbox { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; margin: 0 14px 16px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--mail-accent) 16%, var(--mail-border)); border-radius: 10px; color: var(--mail-accent); background: color-mix(in srgb, var(--mail-accent) 6%, var(--mail-surface)); font-size: 12px; font-weight: 600; cursor: pointer; transition: border-color .16s, background .16s; }
+.add-mailbox:hover { border-color: var(--mail-accent); background: color-mix(in srgb, var(--mail-accent) 10%, var(--mail-surface)); }
 .scrollbar { flex: 1; min-height: 0; }
-.account-list { padding: 0 14px 16px; }
-.item { margin-bottom: 10px; border: 1px solid var(--mail-border); border-radius: 11px; background: var(--mail-surface); transition: border-color .16s, background .16s, box-shadow .16s; overflow: hidden; }
-.item:hover { border-color: color-mix(in srgb, var(--mail-accent) 45%, var(--mail-border)); }
-.item-choose { border-color: color-mix(in srgb, var(--mail-accent) 35%, var(--mail-border)); background: color-mix(in srgb, var(--mail-accent) 5%, var(--mail-surface)); box-shadow: 0 3px 12px color-mix(in srgb, var(--mail-accent) 5%, transparent); }
-.account-select { display: flex; align-items: center; width: 100%; gap: 10px; padding: 15px 11px 12px; text-align: left; cursor: pointer; }
-.account-monogram { display: grid; place-items: center; width: 33px; height: 33px; border-radius: 10px; flex-shrink: 0; background: var(--mail-canvas); color: var(--mail-muted); font-size: 14px; font-weight: 650; }
+.account-list { padding: 0 12px 14px; }
+.item { position: relative; margin-bottom: 8px; border: 1px solid transparent; border-radius: 12px; background: var(--mail-surface); transition: border-color .16s, background .16s; overflow: hidden; }
+.item:hover { background: var(--mail-canvas); border-color: var(--mail-border); }
+.item-choose, .item-choose:hover { border-color: color-mix(in srgb, var(--mail-accent) 22%, var(--mail-border)); background: color-mix(in srgb, var(--mail-accent) 6%, var(--mail-surface)); }
+.item-choose::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--mail-accent); pointer-events: none; }
+.account-select { position: relative; display: flex; align-items: flex-start; width: 100%; gap: 9px; padding: 11px 10px 4px; text-align: left; cursor: pointer; }
+.account-select:focus-visible { outline-offset: -3px; border-radius: 11px; }
+.account-monogram { display: grid; place-items: center; width: 30px; height: 32px; border-radius: 9px; flex-shrink: 0; background: var(--mail-canvas); color: var(--regular-text-color); font-size: 13px; font-weight: 650; }
 .item-choose .account-monogram { color: var(--mail-accent); background: color-mix(in srgb, var(--mail-accent) 11%, var(--mail-surface)); }
-.account-identity { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.account-prefix { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 650; font-size: 13px; color: var(--mail-text); }
-.account-domain { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--mail-muted); }
-.selected-check { color: var(--mail-accent); flex-shrink: 0; }
-.account-actions { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px 7px; border-top: 1px solid color-mix(in srgb, var(--mail-border) 65%, transparent); gap: 2px; }
-.receive-mode { display: flex; align-items: center; gap: 4px; min-height: 29px; padding: 0 5px; border-radius: 6px; font-size: 10px; color: var(--mail-muted); cursor: pointer; }
-.receive-mode:hover, .receive-all { color: var(--mail-accent); background: color-mix(in srgb, var(--mail-accent) 6%, transparent); }
-.receive-mode:disabled { opacity: .6; cursor: wait; }
+.account-identity { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-right: 18px; }
+.account-prefix { overflow-wrap: anywhere; font-weight: 600; font-size: 12px; line-height: 17px; color: var(--mail-text); }
+.account-domain { overflow-wrap: anywhere; font-size: 11px; line-height: 16px; color: var(--regular-text-color); }
+.selected-check { position: absolute; right: 10px; top: 13px; display: grid; place-items: center; width: 17px; height: 17px; color: var(--mail-on-accent); background: var(--mail-accent); border-radius: 50%; }
+.account-actions { display: flex; justify-content: space-between; align-items: center; padding: 0 6px 5px 49px; gap: 4px; }
+.receive-mode { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 2px 0; font-size: 10px; line-height: 16px; color: var(--regular-text-color); }
+.receive-mode span { overflow-wrap: anywhere; }
+.receive-mode :deep(svg) { flex-shrink: 0; }
+.receive-all { color: var(--mail-accent); }
+.account-actions .icon-button { width: 27px; height: 27px; border-radius: 7px; }
+.account-actions .icon-button:focus-visible { outline-offset: -2px; }
 .settings { display: flex; align-items: center; gap: 1px; }
 .account-skeleton { display: flex; align-items: center; gap: 10px; border: 1px solid var(--mail-border); border-radius: 11px; padding: 16px 12px; margin-bottom: 10px; }
 .skeleton-copy { flex: 1; display: flex; flex-direction: column; gap: 9px; }
-.list-footnote { display: flex; align-items: center; gap: 7px; justify-content: center; color: var(--mail-muted); opacity: .65; font-size: 10px; padding: 8px 6px; }
-.footnote-line { height: 1px; background: var(--mail-border); flex: 1; }
+.list-footnote { display: flex; align-items: center; gap: 5px; justify-content: center; color: var(--regular-text-color); font-size: 10px; padding: 10px 6px; }
 .empty-mailboxes { display: flex; flex-direction: column; align-items: center; color: var(--mail-muted); gap: 12px; padding: 30px 0; }
 .empty-mailboxes p { margin: 0; font-size: 12px; }
 .domain-panel { flex-shrink: 0; padding: 17px 18px 20px; border-top: 1px solid var(--mail-border); }
@@ -581,7 +584,14 @@ h2 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 650; letter-spa
 .turnstile-hide { opacity: 0; pointer-events: none; position: fixed; }
 .is-spinning { animation: refresh-spin 1s linear infinite; }
 @keyframes refresh-spin { to { transform: rotate(360deg); } }
-@media (max-width: 767px) { .drawer-close { display: inline-flex; } .account-heading { padding-top: 20px; } }
+@media (max-width: 767px) {
+  .drawer-close { display: inline-flex; }
+  .account-heading { padding-top: 16px; }
+  .account-heading .icon-button, .account-actions .icon-button { width: 44px; height: 44px; }
+  .add-mailbox { min-height: 44px; }
+  .account-select { padding-top: 12px; padding-bottom: 6px; }
+  .account-actions { padding-left: 10px; padding-bottom: 2px; }
+}
 @media (max-width: 480px) { :deep(.el-dialog) { width: calc(100% - 32px) !important; margin-left: 16px !important; margin-right: 16px !important; padding: 22px; } .new-mailbox-fields { grid-template-columns: 1fr; } }
-@media (prefers-reduced-motion: reduce) { .is-spinning { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .is-spinning { animation: none; } .item, .icon-button, .add-mailbox { transition: none; } }
 </style>
