@@ -3,7 +3,7 @@
 Omi Mail is an independently branded and maintained domain-mail application.
 Its visual identity, mailbox workspace, login experience and additional changes
 are developed for this project, maintained at
-https://github.com/masoneai/cloud-mail-optimized.
+https://github.com/masoneai/omi-mail.
 
 The repository began with [maillab/cloud-mail](https://github.com/maillab/cloud-mail)
 at commit `ec7a2bb17c950576c38d7308128cac7696fea169`. Portions of its mail service,

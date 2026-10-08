@@ -163,6 +163,7 @@ import {useUserStore} from '@/store/user.js';
 import {useUiStore} from '@/store/ui.js';
 import {Icon} from '@iconify/vue';
 import BrandMark from '@/components/brand-mark/index.vue';
+import {brand} from '@/brand.js';
 import {cvtR2Url} from '@/utils/convert.js';
 import {loginUserInfo} from '@/request/my.js';
 import {permsToRouter} from '@/perm/perm.js';
@@ -203,7 +204,7 @@ const background = computed(() => settingStore.settings.background ? {
 const projectUrl = computed(() => {
   const link = settingStore.settings.projectLink;
   if (!link) return '';
-  if (link === true || link === 1) return 'https://github.com/masoneai/cloud-mail-optimized';
+  if (link === true || link === 1) return brand.sourceUrl;
   try {
     const url = new URL(String(link));
     return ['https:', 'http:'].includes(url.protocol) ? url.href : '';

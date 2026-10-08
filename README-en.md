@@ -7,20 +7,20 @@
 <p align="center">
   <a href="README.md">简体中文</a> · English ·
   <a href="https://284021.xyz">Website</a> ·
-  <a href="https://github.com/masoneai/cloud-mail-optimized">Source</a> ·
-  <a href="https://github.com/masoneai/cloud-mail-optimized/issues">Issues</a>
+  <a href="https://github.com/masoneai/omi-mail">Source</a> ·
+  <a href="https://github.com/masoneai/omi-mail/issues">Issues</a>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-087f75" alt="MIT license" /></a>
-  <a href="https://github.com/masoneai/cloud-mail-optimized/actions/workflows/ci.yml"><img src="https://github.com/masoneai/cloud-mail-optimized/actions/workflows/ci.yml/badge.svg" alt="Test and build" /></a>
+  <a href="https://github.com/masoneai/omi-mail/actions/workflows/ci.yml"><img src="https://github.com/masoneai/omi-mail/actions/workflows/ci.yml/badge.svg" alt="Test and build" /></a>
 </p>
 
 ## Omi Mail
 
 Omi Mail is an independently maintained domain email application running on Cloudflare Workers. It receives mail through Cloudflare Email Routing and sends mail through Resend. Multiple domains and addresses share one workspace, with Chinese, English and dark themes for personal or small-team domain email.
 
-This repository uses its own Omi Mail brand, redesigned login, navigation, message list and composer, and reworked mail parsing, sending allowances, configuration caching and delivery callbacks. The repository name remains `cloud-mail-optimized`; its origins and license are explained below.
+This repository uses its own Omi Mail brand, redesigned login, navigation, message list and composer, and reworked mail parsing, sending allowances, configuration caching and delivery callbacks. The repository is named `omi-mail`, matching the Omi Mail identity; its origins and license are explained below.
 
 **[Open Omi Mail](https://284021.xyz/login)**. This is an operating email website. Login and registration follow the administrator's settings; there is no public administrator demo account.
 
@@ -66,8 +66,8 @@ There is no server to manage, but domains, Cloudflare and Resend each have their
 Development and CI use **Node.js 24** and **pnpm**. The frontend builds into `mail-worker/dist`, served together with the local Worker.
 
 ```sh
-git clone https://github.com/masoneai/cloud-mail-optimized.git
-cd cloud-mail-optimized
+git clone https://github.com/masoneai/omi-mail.git
+cd omi-mail
 pnpm --dir mail-vue install --frozen-lockfile
 pnpm --dir mail-worker install --frozen-lockfile
 pnpm --dir mail-vue run build

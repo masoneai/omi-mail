@@ -7,20 +7,20 @@
 <p align="center">
   简体中文 · <a href="README-en.md">English</a> ·
   <a href="https://284021.xyz">在线站点</a> ·
-  <a href="https://github.com/masoneai/cloud-mail-optimized">源代码</a> ·
-  <a href="https://github.com/masoneai/cloud-mail-optimized/issues">反馈</a>
+  <a href="https://github.com/masoneai/omi-mail">源代码</a> ·
+  <a href="https://github.com/masoneai/omi-mail/issues">反馈</a>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-087f75" alt="MIT license" /></a>
-  <a href="https://github.com/masoneai/cloud-mail-optimized/actions/workflows/ci.yml"><img src="https://github.com/masoneai/cloud-mail-optimized/actions/workflows/ci.yml/badge.svg" alt="Test and build" /></a>
+  <a href="https://github.com/masoneai/omi-mail/actions/workflows/ci.yml"><img src="https://github.com/masoneai/omi-mail/actions/workflows/ci.yml/badge.svg" alt="Test and build" /></a>
 </p>
 
 ## Omi Mail
 
 Omi Mail 是由本仓库独立维护的域名邮箱，运行在 Cloudflare Workers 上，使用 Cloudflare Email Routing 收件、Resend 发件。它把多域名和多个邮箱地址放进同一个工作区，提供中文、英文及深色主题，适合管理个人或小团队的域名邮件。
 
-项目采用独立的 Omi Mail 品牌，重新设计登录页、邮箱导航、邮件列表和写信窗口，并重构了邮件解析、发件额度、配置缓存与投递回调。仓库名暂保留 `cloud-mail-optimized`，代码来源和许可证说明见文末。
+项目采用独立的 Omi Mail 品牌，重新设计登录页、邮箱导航、邮件列表和写信窗口，并重构了邮件解析、发件额度、配置缓存与投递回调。仓库名为 `omi-mail`，与 Omi Mail 品牌保持一致；代码来源和许可证说明见文末。
 
 **[进入 Omi Mail](https://284021.xyz/login)**。这是实际运行的邮箱站点；登录和注册以站点管理员的设置为准，不提供公开的管理员测试账号。
 
@@ -66,8 +66,8 @@ Omi Mail 是由本仓库独立维护的域名邮箱，运行在 Cloudflare Worke
 开发和 CI 使用 **Node.js 24** 与 **pnpm**。前端构建输出到 `mail-worker/dist`，由本地 Worker 一起提供服务。
 
 ```sh
-git clone https://github.com/masoneai/cloud-mail-optimized.git
-cd cloud-mail-optimized
+git clone https://github.com/masoneai/omi-mail.git
+cd omi-mail
 pnpm --dir mail-vue install --frozen-lockfile
 pnpm --dir mail-worker install --frozen-lockfile
 pnpm --dir mail-vue run build
