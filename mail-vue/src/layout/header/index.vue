@@ -44,7 +44,7 @@
               <button ref="copyAddressButton" class="detail-email" :title="copy.copyAddress" :aria-label="copy.copyAddress + ' ' + userStore.user.email" @click="copyEmail(userStore.user.email)">
                 <Icon icon="lucide:at-sign" width="15" aria-hidden="true" />
                 <span>{{ userStore.user.email }}</span>
-                <Icon icon="lucide:copy" width="15" aria-hidden="true" />
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h11v11H9zM15 9V4H4v11h5" /></svg>
               </button>
             </div>
             <div class="profile-allowances">
@@ -68,7 +68,7 @@
             </div>
             <div class="profile-actions">
               <button class="profile-action settings-action" @click="openAccountSettings"><Icon icon="lucide:sliders-horizontal" width="16" />{{ copy.accountSettings }}</button>
-              <el-button class="profile-action logout-action" :loading="logoutLoading" @click="clickLogout"><Icon v-if="!logoutLoading" icon="lucide:log-out" width="16" />{{ $t('logOut') }}</el-button>
+              <el-button class="profile-action logout-action" :loading="logoutLoading" @click="clickLogout"><svg v-if="!logoutLoading" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H4V3h5M10 12h11M17 8l4 4-4 4" /></svg>{{ $t('logOut') }}</el-button>
             </div>
           </section>
         </template>
