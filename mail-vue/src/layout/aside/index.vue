@@ -1,10 +1,10 @@
 <template>
   <div class="sidebar">
     <div class="brand">
-      <span class="brand-mark"><Icon icon="solar:letter-bold-duotone" width="25" height="25" /></span>
+      <span class="brand-mark"><BrandMark :size="29" /></span>
       <div class="brand-copy">
-        <strong>{{ settingStore.settings.title || 'Cloud Mail' }}</strong>
-        <span>YOUR DOMAIN. YOUR SPACE.</span>
+        <strong :title="brandTitle">{{ brandTitle }}</strong>
+        <span>{{ copy.brandLine }}</span>
       </div>
       <button class="close-sidebar" :aria-label="copy.close" @click="uiStore.asideShow = false">
         <Icon icon="lucide:x" width="18" />
@@ -38,8 +38,12 @@
     </el-scrollbar>
 
     <div class="sidebar-footer">
-      <span class="footer-icon"><Icon icon="lucide:orbit" width="20" /></span>
-      <div><strong>{{ copy.personalSpace }}</strong><span>{{ copy.domains }}</span></div>
+      <div class="domain-card">
+        <div class="domain-caption"><Icon icon="lucide:globe-2" width="13" /><span>{{ copy.currentDomain }}</span></div>
+        <strong class="domain-name" :title="currentDomain || copy.personalSpace">{{ currentDomain || copy.personalSpace }}</strong>
+        <div class="domain-details"><span>{{ copy.domains }}</span><span class="postmark" aria-hidden="true"><Icon icon="lucide:at-sign" width="13" /></span></div>
+      </div>
+      <span class="footer-note">{{ copy.footerLine }}</span>
     </div>
   </div>
 </template>
@@ -52,20 +56,34 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useSettingStore } from '@/store/setting.js'
 import { useUiStore } from '@/store/ui.js'
+import { useAccountStore } from '@/store/account.js'
+import { useUserStore } from '@/store/user.js'
+import BrandMark from '@/components/brand-mark/index.vue'
 import { hasPerm } from '@/perm/perm.js'
 
 const settingStore = useSettingStore()
 const uiStore = useUiStore()
+const accountStore = useAccountStore()
+const userStore = useUserStore()
 const route = useRoute()
 const { locale } = useI18n()
 const activeName = computed(() => route.meta.name === 'content' ? 'email' : route.meta.name)
+const brandTitle = computed(() => settingStore.settings.title || 'Omi Mail')
+const domains = computed(() => [...new Set((settingStore.domainList.length ? settingStore.domainList : settingStore.settings.domainList || [])
+  .map(domain => String(domain).replace(/^@/, '')))])
+const currentDomain = computed(() => {
+  const email = accountStore.currentAccount.email || userStore.user.email || ''
+  return email.includes('@') ? email.slice(email.lastIndexOf('@') + 1) : domains.value[0] || ''
+})
 const copy = computed(() => {
-  const count = settingStore.settings.domainList?.length || 0
-  return locale.value === 'en' ? {
-    compose: 'Compose', close: 'Close navigation', workspace: 'MY WORKSPACE', personalSpace: 'A space of your own',
+  const count = domains.value.length
+  return locale.value.startsWith('en') ? {
+    compose: 'Write a letter', close: 'Close navigation', workspace: 'YOUR POSTBOX', personalSpace: 'Your mail space',
+    brandLine: 'A LITTLE POST OFFICE.', currentDomain: 'YOUR DOMAIN', footerLine: 'A letter, a connection.',
     domains: `${count} available ${count === 1 ? 'domain' : 'domains'}`
   } : {
-    compose: '写邮件', close: '关闭导航', workspace: '我的工作区', personalSpace: '你的域名，你的空间', domains: `${count} 个可用域名`
+    compose: '写一封信', close: '关闭导航', workspace: '我的信箱', personalSpace: '专属邮箱空间',
+    brandLine: '一间属于你的邮局', currentDomain: '当前邮域', footerLine: '从一封信，开始连接。', domains: `${count} 个可用域名`
   }
 })
 const mailboxItems = computed(() => [
@@ -109,21 +127,20 @@ function openSend() {
 .brand-mark {
   width: 38px;
   height: 38px;
-  border-radius: 12px;
+  border-radius: 11px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  background: #bce9d9;
+  background: #e9f7ee;
   color: #163f3c;
-  transform: rotate(-7deg);
-  svg { transform: rotate(7deg); }
+  box-shadow: 0 0 0 1px #d7f0e52b, 0 3px 8px #001f1920;
 }
 .brand-copy {
   min-width: 0;
   display: grid;
   gap: 3px;
   strong { font-size: 17px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -.3px; }
-  > span { font-size: 7px; letter-spacing: 1.25px; color: #b2c9c4; white-space: nowrap; }
+  > span { font-size: 8px; letter-spacing: 1px; color: #b2c9c4; white-space: nowrap; }
 }
 .close-sidebar { display: none; color: #d4e9e2; cursor: pointer; }
 .compose-button {
@@ -164,24 +181,23 @@ function openSend() {
     font-size: 13px;
     line-height: normal;
     > svg { flex-shrink: 0; }
-    &.is-active { background: var(--aside-menu-active-background); font-weight: 600; }
+    &.is-active { background: var(--aside-menu-active-background); font-weight: 600; box-shadow: inset 3px 0 #bce9d9; }
   }
 }
 .management-menu .el-menu-item { height: 36px; font-size: 12px; }
 .active-dot { width: 5px; height: 5px; border-radius: 50%; margin-left: auto; background: #bce9d9; }
 .sidebar-footer {
-  display: flex;
-  align-items: center;
+  display: grid;
   gap: 10px;
   flex-shrink: 0;
-  margin: 16px 22px 21px;
-  padding-top: 18px;
-  border-top: 1px solid #ffffff10;
-  .footer-icon { color: #9bd4be; }
-  > div { display: grid; gap: 4px; }
-  strong { font-size: 10px; font-weight: 500; color: #b7cec7; }
-  span { font-size: 10px; color: #829f97; }
+  margin: 16px 18px 18px;
 }
+.domain-card { display: grid; gap: 7px; min-width: 0; padding: 12px 13px 10px; border: 1px dashed #b6ded43b; border-radius: 10px; background: #ffffff04; }
+.domain-caption { display: flex; align-items: center; gap: 6px; color: #94bdb1; font-size: 9px; letter-spacing: .75px; }
+.domain-name { font-size: 12px; color: #e2f1ea; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.domain-details { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #9abbb2; font-size: 9px; }
+.postmark { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; border: 1px solid #94bdb15b; transform: rotate(-12deg); color: #b8dbcc; }
+.footer-note { color: #829f97; font-size: 9px; text-align: center; letter-spacing: .3px; }
 @media (max-width: 1024px) {
   .brand { padding: 0 16px; gap: 9px; }
   .brand-copy { flex: 1; }
@@ -190,6 +206,8 @@ function openSend() {
 @media (max-height: 730px) {
   .compose-button { margin-bottom: 16px; }
   .management-title { margin-top: 16px; }
-  .sidebar-footer { margin-bottom: 15px; padding-top: 12px; }
+  .sidebar-footer { margin-top: 12px; margin-bottom: 12px; }
+  .domain-card { gap: 5px; padding-top: 10px; padding-bottom: 8px; }
+  .footer-note { display: none; }
 }
 </style>

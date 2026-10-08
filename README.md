@@ -1,232 +1,147 @@
 <p align="center">
-    <img src="doc/demo/logo.png" width="80px" />
-    <h1 align="center">Cloud Mail</h1>
-    <p align="center">基于 Cloudflare 的简约响应式邮箱服务，支持邮件发送、附件收发 🎉</p> 
-    <p align="center">
-        简体中文 | <a href="/README-en.md" style="margin-left: 5px">English </a>
-    </p>
-    <p align="center">
-        <a href="https://github.com/maillab/cloud-mail/tree/main?tab=MIT-1-ov-file" target="_blank" >
-            <img src="https://img.shields.io/badge/license-MIT-green" />
-        </a>    
-        <a href="https://github.com/maillab/cloud-mail/releases" target="_blank" >
-            <img src="https://img.shields.io/github/v/release/maillab/cloud-mail" alt="releases" />
-        </a>  
-        <a href="https://github.com/maillab/cloud-mail/issues" >
-            <img src="https://img.shields.io/github/issues/maillab/cloud-mail" alt="issues" />
-        </a>  
-        <a href="https://github.com/maillab/cloud-mail/stargazers" target="_blank">
-            <img src="https://img.shields.io/github/stars/maillab/cloud-mail" alt="stargazers" />
-        </a>  
-        <a href="https://github.com/maillab/cloud-mail/forks" target="_blank" >
-            <img src="https://img.shields.io/github/forks/maillab/cloud-mail" alt="forks" />
-        </a>
-    </p>
-    <p align="center">
-        <a href="https://trendshift.io/repositories/20459" target="_blank" >
-            <img src="https://trendshift.io/api/badge/repositories/20459" alt="trendshift" >
-        </a>
-    </p>
+  <img src="doc/omi-mail-brand.svg" width="280" alt="Omi Mail" />
 </p>
 
+<p align="center">自己的域名，安静而顺手的邮件工作区。</p>
 
-## 项目简介
+<p align="center">
+  简体中文 · <a href="README-en.md">English</a> ·
+  <a href="https://284021.xyz">在线站点</a> ·
+  <a href="https://github.com/masoneai/cloud-mail-optimized">源代码</a> ·
+  <a href="https://github.com/masoneai/cloud-mail-optimized/issues">反馈</a>
+</p>
 
-只需要一个域名，就可以创建多个不同的邮箱，类似各大邮箱平台，本项目支持署到 Cloudflare Workers ，降低服务器成本，搭建自己的邮箱服务
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-087f75" alt="MIT license" /></a>
+  <a href="https://github.com/masoneai/cloud-mail-optimized/actions/workflows/ci.yml"><img src="https://github.com/masoneai/cloud-mail-optimized/actions/workflows/ci.yml/badge.svg" alt="Test and build" /></a>
+</p>
 
-## 本地优化版本
+## Omi Mail
 
-本版本基于上游 `ec7a2bb` 重构邮件处理、发信额度、配置读取和回调校验，继续使用 Cloudflare Workers、D1、KV 与 Resend。
+Omi Mail 是由本仓库独立维护的域名邮箱，运行在 Cloudflare Workers 上，使用 Cloudflare Email Routing 收件、Resend 发件。它把多域名和多个邮箱地址放进同一个工作区，提供中文、英文及深色主题，适合管理个人或小团队的域名邮件。
 
-- **节省 Worker 请求**：网页和前端资源直接由静态资源服务返回，仅 `/api/*`、`/static/*` 和 `/attachments/*` 先执行 Worker。
-- **减少 KV 配置读取**：当前 Worker 实例缓存原始配置 30 秒；每个请求独立克隆，设置页面的密钥脱敏不会污染发送流程。
-- **可靠解析入站邮件**：原始邮件保持字节格式，避免分块中文乱码和二进制附件损坏；先检查收件人权限，再解析 MIME。
-- **发件先校验**：收件人、普通附件、内嵌图片及回复归属在调用发送服务前检查。角色额度通过 D1 条件更新原子预留，避免并发突破余额。
-- **安全回调**：Resend 回调验证原始正文签名与时间戳；忽略打开、点击等非状态事件，迟到通知不会将最终状态改回待投递。
-- **多域名精确匹配**：兼容 TOML 数组和 JSON 字符串，统一去空格、小写及去重，修复子串域名被误允许的问题，并兼容旧的大小写 Resend Token 键。
-- **通知及定时任务隔离**：Telegram/Webhook 通知在邮件保存后执行，失败不会阻止收件；午夜任务使用计划时间，单项失败不跳过后续维护任务。
+项目采用独立的 Omi Mail 品牌，重新设计登录页、邮箱导航、邮件列表和写信窗口，并重构了邮件解析、发件额度、配置缓存与投递回调。仓库名暂保留 `cloud-mail-optimized`，代码来源和许可证说明见文末。
 
-### 邮箱工作区
+**[进入 Omi Mail](https://284021.xyz/login)**。这是实际运行的邮箱站点；登录和注册以站点管理员的设置为准，不提供公开的管理员测试账号。
 
-前端采用青绿与暖白的工作区，保留原有中文、英文、深色主题与管理权限。导航、邮箱卡片、邮件列表及写信窗口使用统一布局，手机上导航和邮箱列表收为抽屉。
+<p align="center">
+  <img src="mail-vue/public/image/login-mail-garden.webp" width="560" alt="Omi Mail 登录页的信封与云朵主题插画" />
+</p>
 
-- 按 **C** 快速写信；输入内容或打开弹窗时不会触发快捷键。
-- 未读筛选作用于**当前已加载邮件**，可继续加载更早的邮件；选择和批量操作与筛选同步。
-- 空收件箱提供写信、复制邮箱入口；创建地址时实时预览前缀与域名。
-- 切换邮箱时排队刷新，避免旧账号的异步结果覆盖当前列表；离开收件箱时停止自动轮询。
-- 写信窗口支持键盘、焦点恢复与草稿保存，编辑器重建时保留正文，并提供加载失败重试。
+## 已实现的体验
 
-本地预览先在 `mail-vue` 运行 `pnpm install --frozen-lockfile`、`pnpm run build`，再在 `mail-worker` 运行：
+- **清爽的邮箱工作区**：青绿与暖白配色，统一导航、邮箱卡片、邮件列表和写信窗口；手机上导航与邮箱列表收为抽屉。
+- **顺手的登录**：专属邮件主题插画，用户名按回车进入密码框，密码按回车登录；保留域名选择、自定义背景与已配置的第三方登录。
+- **多地址、多域名**：在管理员配置的域名内创建邮箱地址，切换地址时排队刷新，避免旧请求覆盖当前列表。
+- **收件和发件**：支持中文邮件、HTML 正文、回复、普通附件及内嵌图片；接入 Resend 后可以查看投递状态。
+- **更容易处理邮件**：当前已加载邮件的未读筛选、星标、批量操作、草稿保存；按 **C** 快速写信，输入内容或弹窗内不会触发快捷键。
+- **管理与权限**：用户、角色、邮箱和发件额度管理；注册、收件范围及附件存储由管理员控制。
+
+源码还包含可选的 Telegram/Webhook 通知、Turnstile、OAuth、数据统计和 Workers AI 接口。使用这些功能需要另行配置相应服务；它们不因部署前端而自动开启。
+
+## 本仓库的实现特色
+
+| 改进 | 实际行为 |
+| --- | --- |
+| 静态资源分流 | 页面与前端资源由静态资源服务返回，仅 `/api/*`、`/static/*` 和 `/attachments/*` 优先执行 Worker。 |
+| 配置缓存 | 当前 Worker 实例缓存原始配置 30 秒，每次请求独立克隆；管理页面脱敏不会污染发件配置。 |
+| 入站邮件解析 | 保持原始邮件字节，避免分块中文乱码和二进制附件损坏；先检查收件人权限，再解析 MIME。 |
+| 发件额度预留 | 收件人、附件、内嵌图片和回复归属先校验；通过 D1 条件更新原子预留角色额度。 |
+| 回调验签 | 对 Resend 回调的原始正文验签并检查时间戳；忽略非状态事件，迟到通知不会覆盖最终投递状态。 |
+| 域名精确匹配 | 域名去空格、小写及去重，兼容 TOML 数组与 JSON 字符串，避免通过子串匹配误放行域名。 |
+| 后台任务隔离 | 邮件保存后再执行通知；单项通知或维护任务失败不会跳过其他任务。 |
+
+## 技术与存储
+
+- **前端**：Vue 3、Element Plus、Pinia、Vue Router、Vue I18n、Vite。
+- **服务端**：Cloudflare Workers、Hono、Drizzle、PostalMime。
+- **数据**：D1 保存用户及邮件数据，KV 保存配置、会话和可选的附件对象。
+- **邮件服务**：Cloudflare Email Routing 接收入站邮件，Resend 发送外部邮件。
+- **可选存储**：附件默认可使用 KV；按需求绑定 R2 或配置 S3 兼容存储。
+
+无需管理自建服务器，但域名、Cloudflare 与 Resend 均受各自的套餐、配额和计费规则约束。创建多个前缀不等于无限容量或无限发送；项目不承诺永久零成本。
+
+## 本地运行
+
+开发和 CI 使用 **Node.js 24** 与 **pnpm**。前端构建输出到 `mail-worker/dist`，由本地 Worker 一起提供服务。
 
 ```sh
+git clone https://github.com/masoneai/cloud-mail-optimized.git
+cd cloud-mail-optimized
+pnpm --dir mail-vue install --frozen-lockfile
+pnpm --dir mail-worker install --frozen-lockfile
+pnpm --dir mail-vue run build
+cd mail-worker
 pnpm exec wrangler dev --local --config wrangler-dev.toml --port 8790 --ip 127.0.0.1 --show-interactive-dev-session=false
 ```
 
-打开 `http://127.0.0.1:8790`。本地数据库与账号独立于线上服务；真正收发外部邮件仍需配置域名路由与 Resend。
+打开 <http://127.0.0.1:8790>。`wrangler-dev.toml` 中的域名、管理员和签名值仅用于本地开发；本地数据库与账号独立于线上环境。首次启动时，需要通过 `/api/init/<本地 jwt_secret>` 初始化数据库，再在本地注册配置中的管理员邮箱并设置密码。
 
-### 验证与部署
+本地预览不会自动获得外部邮件收发能力。不要把开发配置中的示例签名值用于生产环境，也不要向开发邮箱存入真实敏感邮件。
 
-开发和测试使用 Node.js 24 与 pnpm；测试使用真实 MIME 解析和 SQLite，发送服务用替身测试，不会向外部邮箱发信。
+## 部署到 Cloudflare
 
-```sh
-cd mail-worker
-pnpm install --frozen-lockfile
-pnpm test
-pnpm run check:bundle
-```
+部署包含网站与邮件服务两部分；仅发布网页还不能收到或发送域名邮件。
 
-`pnpm test` 现在只运行测试。原来的测试环境部署命令改为 `pnpm run deploy:test`；正式部署仍为 `pnpm run deploy`。
+1. 在 Cloudflare 准备域名、Worker、D1 和 KV，绑定名分别为 `db`、`kv` 与静态资源的 `assets`。R2 是可选项。
+2. 设置邮箱域名数组 `domain`、管理员邮箱 `admin`，并使用自己的 `jwt_secret`。首次部署后，通过 `/api/init/<jwt_secret>` 初始化数据库；此地址含私有密钥，不要公开或存进仓库。
+3. 在 Cloudflare Email Routing 配置域名 DNS 与路由，让所需地址或 catch-all 指向该 Worker。实际接受哪些邮箱地址仍取决于站点的收件设置。
+4. 注册配置中的管理员邮箱并设置密码，进入系统设置确认注册、收件范围和存储选项。
+5. 需要发件时，在 Resend 验证发件域名，创建仅允许该域名发件的 API Key，填入系统的 Resend 配置并开启发件。
+6. 需要投递状态时，在 Resend 创建指向 `https://你的站点/api/webhooks` 的回调，并把它的 Signing Secret 保存为 Worker Secret `resend_webhook_secret`。
 
-### GitHub 与线上部署
+### GitHub Actions
 
-GitHub 仓库保存源代码和版本记录。`CI` 工作流在推送和 Pull Request 时使用 Node.js 24 检查邮件服务测试、构建邮箱前端；本地数据库、登录账号、截图、构建产物及私有环境文件不会上传。
-
-线上邮箱由 Cloudflare Workers 运行。仓库的 Cloudflare 部署工作流保留自动推送部署与手动运行入口，只有必要配置齐全后才执行。先在仓库 **Settings → Secrets and variables → Actions** 配置：
+仓库的 Cloudflare 部署工作流支持手动运行以及前后端源代码推送后部署。它会先检查所需配置，未配置时跳过部署。到 **Settings → Secrets and variables → Actions** 添加：
 
 | 配置 | 存放位置 | 用途 |
 | --- | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | Secrets | Worker、D1、KV 的部署权限 |
-| `CLOUDFLARE_ACCOUNT_ID` | Variables | Cloudflare 账号 ID |
 | `JWT_SECRET` | Secrets | 自行生成的登录签名密钥 |
-| `DOMAIN` | Variables | 邮箱域名 JSON 数组，例如 `["example.com"]` |
+| `CLOUDFLARE_ACCOUNT_ID` | Variables | Cloudflare 账号 ID |
+| `DOMAIN` | Variables | 域名 JSON 数组，例如 `["example.com"]` |
 | `ADMIN` | Variables | 管理员邮箱，例如 `admin@example.com` |
 
-`NAME`、`CUSTOM_DOMAIN`、`D1_DATABASE_ID`、`KV_NAMESPACE_ID`、`R2_BUCKET_NAME` 为可选配置。已有 D1/KV 可提供 ID；未提供时工作流会按名称查找或创建。启用附件对象存储时填写 R2 Bucket，并按上游文档配置权限。完成后在 **Actions** 中运行 Cloudflare 部署工作流，或推送更新。
+可选配置：`NAME`、`CUSTOM_DOMAIN`、`D1_DATABASE_ID`、`KV_NAMESPACE_ID`、`R2_BUCKET_NAME`、`PROJECT_LINK`。提供已有 D1/KV 的 ID 可复用资源；未提供时工作流按名称查找或创建。`PROJECT_LINK` 可设置为本仓库地址。域名邮件路由、Resend 与回调 Secret 仍须单独配置。
 
-域名邮件路由与 Resend 发信配置仍需在对应平台完成；回调签名密钥见下文。`mail-vue/.env.remote` 是连接上游演示站的示例，使用 `pnpm remote` 前应换成自己的服务地址；生产构建默认访问同站 `/api`。
+### 命令行部署
 
-按原部署流程绑定 `db`、`kv`，设置 `domain`、`admin` 与自己的 `jwt_secret`，配置邮件路由。启用 Resend 状态回调还需在 Cloudflare Worker 的 **Secrets** 添加 `resend_webhook_secret`，其值取自 Resend 对应 Webhook 的 Signing Secret（`whsec_...`）。回调地址仍为 `https://你的邮箱网站/api/webhooks`。
+以 `mail-worker/wrangler.toml` 为配置模板，填写自己的资源绑定、域名和管理员，移除不使用的可选绑定，然后在 `mail-worker` 目录执行：
 
-命令部署可在配置好 Worker 后添加密钥：
+```sh
+pnpm exec wrangler login
+pnpm exec wrangler secret put jwt_secret
+pnpm exec wrangler deploy
+```
+
+`wrangler.toml` 的构建步骤会安装并构建前端。启用回调时再执行：
 
 ```sh
 pnpm exec wrangler secret put resend_webhook_secret
 ```
 
-未设置签名密钥时回调返回 503；未通过验签返回 401。不要把 Signing Secret 当作 Resend 发信 API Key。签名流程参考 [Resend 官方文档](https://resend.com/docs/webhooks/verify-webhooks-requests)，静态资源分流参考 [Cloudflare 官方文档](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/)。
+API Key 与 Webhook Signing Secret 是两种不同密钥。未配置回调签名密钥时，回调返回 503；验签失败返回 401。可参考 [Cloudflare 静态资源路由](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/) 与 [Resend 回调验签文档](https://resend.com/docs/webhooks/verify-webhooks-requests)。
 
-### 当前边界
+## 检查与已知边界
 
-用户角色额度与 Resend 团队的免费额度是两种计数，仍需遵守服务商限制；每日 KV 发送统计为近似数据。发送遇到网络异常时结果可能未知，因此保留已预留额度，不能保证重试绝不重复发信。
-
-配置修改在当前实例立即更新；其他实例最多保留 30 秒本地缓存，且受 KV 最终一致性影响。D1 与对象存储没有跨服务事务：附件保存失败会尝试清理本次邮件及已登记附件，但尚未登记的已上传对象可能残留。
-
-## 项目展示
-
-- [在线演示](https://skymail.ink)<br>
-- [部署文档](https://doc.skymail.ink)<br>
-
-| ![](/doc/demo/demo1.png) | ![](/doc/demo/demo2.png) |
-|-----------------------|-----------------------|
-| ![](/doc/demo/demo3.png) | ![](/doc/demo/demo4.png) |
-
-
-
-
-## 功能介绍
-
-- **💰 低成本使用**： 可部署到 Cloudflare Workers 降低服务器成本
-
-- **💻 响应式设计**：响应式布局自动适配PC和大部分手机端浏览器
-
-- **📧 邮件发送**：集成Resend发送邮件，支持群发，内嵌图片和附件发送，发送状态查看
-
-- **🛡️ 管理员功能**：可以对用户，邮件进行管理，RABC权限控制对功能及使用资源限制
-
-- **📦 附件收发**：支持收发附件，使用R2对象存储保存和下载文件
-
-- **🔔 邮件推送**：接收邮件后可以转发到TG机器人或其他服务商邮箱
-
-- **📡 开放API**：支持使用API批量生成用户，多条件查询邮件 
-
-- **🔢 验证码识别**：使用Workers AI，自动识别邮件验证码 
-
-- **📈 数据可视化**：使用ECharts对系统数据详情，用户邮件增长可视化显示
-
-- **🎨 个性化设置**：可以自定义网站标题，登录背景，透明度
-
-- **🤖 人机验证**：集成Turnstile人机验证，防止人机批量注册
-
-- **📜 更多功能**：正在开发中...
-
-
-
-## 技术栈
-
-- **平台**：[Cloudflare Workers](https://developers.cloudflare.com/workers/)
-
-- **Web框架**：[Hono](https://hono.dev/)
-
-- **ORM：**[Drizzle](https://orm.drizzle.team/)
-
-- **前端框架**：[Vue3](https://vuejs.org/) 
-
-- **UI框架**：[Element Plus](https://element-plus.org/) 
-
-- **邮件推送：** [Resend](https://resend.com/)
-
-- **缓存**：[Cloudflare KV](https://developers.cloudflare.com/kv/)
-
-- **数据库**：[Cloudflare D1](https://developers.cloudflare.com/d1/)
-
-- **文件存储**：[Cloudflare R2](https://developers.cloudflare.com/r2/)
-
-## 目录结构
-
-```
-cloud-mail
-├── mail-worker				    # worker后端项目
-│   ├── src                  
-│   │   ├── api	 			    # api接口层			
-│   │   ├── const  			    # 项目常量
-│   │   ├── dao                 # 数据访问层
-│   │   ├── email			    # 邮件处理接收
-│   │   ├── entity			    # 数据库实体
-│   │   ├── error			    # 自定义异常
-│   │   ├── hono			    # web框架配置、拦截器、全局异常等
-│   │   ├── i18n			    # 语言国际化
-│   │   ├── init			    # 数据库缓存初始化
-│   │   ├── model			    # 响应体数据封装
-│   │   ├── security			# 身份权限认证
-│   │   ├── service			    # 业务服务层
-│   │   ├── template			# 消息模板
-│   │   ├── utils			    # 工具类
-│   │   └── index.js			# 入口文件
-│   ├── pageckge.json			# 项目依赖
-│   └── wrangler.toml			# 项目配置
-│
-├── mail-vue				    # vue前端项目
-│   ├── src
-│   │   ├── axios 			    # axios配置
-│   │   ├── components			# 自定义组件
-│   │   ├── echarts			    # echarts组件导入
-│   │   ├── i18n			    # 语言国际化
-│   │   ├── init			    # 入站初始化
-│   │   ├── layout			    # 主体布局组件
-│   │   ├── perm			    # 权限认证
-│   │   ├── request			    # api接口
-│   │   ├── router			    # 路由配置
-│   │   ├── store			    # 全局状态管理
-│   │   ├── utils			    # 工具类
-│   │   ├── views			    # 页面组件
-│   │   ├── app.vue			    # 入口组件
-│   │   ├── main.js			    # 入口js
-│   │   └── style.css			# 全局css
-│   ├── package.json			# 项目依赖
-└── └── env.release				# 项目配置
+```sh
+cd mail-worker
+pnpm test
+pnpm run check:bundle
+cd ../mail-vue
+pnpm run build
 ```
 
-## 赞助
+测试覆盖 MIME、域名匹配、发件额度、配置缓存与回调验签等流程；发送服务使用替身，不会向外部邮箱发信。CI 在推送和 Pull Request 时运行 Worker 测试并构建前端。本地数据库、登录信息、私有配置与构建产物不应上传 GitHub。
 
-<a href="https://doc.skymail.ink/support.html" >
-<img width="170px" src="./doc/images/support.png" alt="">
-</a>
+- 用户角色额度与邮件服务商额度分别计算；每日 KV 发送统计为近似数据。
+- 发送网络异常时结果可能未知，因此保留已预留额度，不能保证重试绝不重复发信。
+- 配置修改在当前实例立即更新，其他实例的缓存最多保留 30 秒，并受 KV 最终一致性影响。
+- D1 与附件存储没有跨服务事务；附件失败会尝试清理本次记录，但极端情况下可能留下对象。
+- 未读筛选只作用于当前已加载邮件，可继续加载更早的邮件。
 
-## 许可证
+## 来源与许可证
 
-本项目采用 [MIT](LICENSE) 许可证	
+Omi Mail 的代码起点为 [maillab/cloud-mail](https://github.com/maillab/cloud-mail) 的提交 `ec7a2bb`。当前仓库拥有自己的品牌、部署、版本记录、界面设计及上述新增和重构实现，同时保留并继续使用上游的部分接口、数据模型和管理功能。这是一个在开源基础上独立设计与维护的衍生项目，具体来源记录见 [NOTICE.md](NOTICE.md)。
 
-
-## 交流
-
-[Telegram](https://t.me/cloud_mail_tg)
+项目源码采用 [MIT 许可证](LICENSE)，保留上游声明 **Copyright (c) 2025 aslost**。发布、修改或分发本项目时，应保留相应版权和许可文本。第三方依赖及随附资源适用各自许可证：例如随附的 [TinyMCE](mail-vue/public/tinymce/license.md) 声明为 GNU GPL v2 或更高版本；其许可证与 notices 均予保留，不纳入本项目的 MIT 授权声明。

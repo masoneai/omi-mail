@@ -5,8 +5,8 @@
     <main class="auth-shell">
       <section class="auth-story" :aria-label="t('authBrandLabel')">
         <div class="auth-brand">
-          <span class="auth-brand-icon" aria-hidden="true"><Icon icon="mingcute:mail-line" width="25" height="25" /></span>
-          <span>{{ settingStore.settings.title || 'Cloud Mail' }}</span>
+          <BrandMark class="auth-brand-icon" :size="46" />
+          <span>{{ settingStore.settings.title || 'Omi Mail' }}</span>
         </div>
         <div class="auth-story-copy">
           <h1>{{ t('authHeroTitle') }}</h1>
@@ -162,6 +162,7 @@ import {useAccountStore} from '@/store/account.js';
 import {useUserStore} from '@/store/user.js';
 import {useUiStore} from '@/store/ui.js';
 import {Icon} from '@iconify/vue';
+import BrandMark from '@/components/brand-mark/index.vue';
 import {cvtR2Url} from '@/utils/convert.js';
 import {loginUserInfo} from '@/request/my.js';
 import {permsToRouter} from '@/perm/perm.js';
@@ -500,8 +501,8 @@ oauthGetUser();
   gap: clamp(40px, 6vw, 84px);
 }
 .auth-story { min-width: 0; color: var(--auth-story-color); }
-.auth-brand { display: flex; align-items: center; gap: 12px; font-size: 19px; font-weight: 650; overflow-wrap: anywhere; }
-.auth-brand-icon { width: 46px; height: 46px; flex: 0 0 46px; display: grid; place-items: center; background: #e0eee5; border: 1px solid #d3e5da; border-radius: 14px; color: #227a67; }
+.auth-brand { display: flex; align-items: center; gap: 13px; font-size: 20px; font-weight: 650; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+.auth-brand-icon { width: 46px; height: 46px; flex: 0 0 46px; display: block; border-radius: 14px; }
 .auth-story-copy { margin-top: 40px; max-width: 470px; }
 .auth-story-copy h1 { font-size: clamp(33px, 3.1vw, 44px); line-height: 1.35; font-weight: 600; letter-spacing: -0.04em; text-wrap: balance; }
 .auth-story-copy p { margin-top: 17px; font-size: 15px; line-height: 1.85; color: var(--auth-soft-color); }
@@ -548,7 +549,6 @@ oauthGetUser();
 .auth-bind-description { font-size: 13px; color: var(--mail-muted); line-height: 1.7; }
 .login-page--custom .auth-story { border: 1px solid var(--mail-border); padding: 28px; border-radius: 26px; background: rgba(250, 249, 241, 0.88); backdrop-filter: blur(12px); }
 .login-page--dark { --auth-story-color: #dcebe3; --auth-soft-color: #a4beb3; --auth-shadow: 0 20px 70px rgba(0, 0, 0, 0.18); background: radial-gradient(ellipse at 15% 25%, #1f3933 0, transparent 55%), linear-gradient(135deg, #182b27, #142325); }
-.login-page--dark .auth-brand-icon { color: var(--mail-accent); background: #27493f; border-color: #36584c; }
 .login-page--dark .auth-illustration { mix-blend-mode: normal; filter: brightness(0.8) saturate(0.85); }
 .login-page--dark.login-page--custom .auth-story { background: rgba(27, 43, 44, 0.88); }
 @media (max-width: 1000px) {

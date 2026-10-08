@@ -442,48 +442,47 @@
           </div>
 
           <div class="settings-card about">
-            <div class="card-title">{{ $t('about') }}</div>
+            <div class="card-title"><BrandMark :size="26" />{{ brand.name }}</div>
             <div class="card-content">
+              <p class="omi-about-description">{{ aboutCopy.description }}</p>
               <div class="concerning-item">
                 <span>{{ $t('version') }} :</span>
-                <el-badge is-dot :hidden="!hasUpdate">
-                  <el-button @click="jump('https://github.com/maillab/cloud-mail/releases')">
-                    {{ currentVersion }}
+                  <el-button @click="jump(brand.historyUrl)">
+                    {{ brand.version }}
                     <template #icon>
                       <Icon icon="qlementine-icons:version-control-16" style="font-size: 20px" color="#1890FF"/>
                     </template>
                   </el-button>
-                </el-badge>
               </div>
               <div class="concerning-item">
-                <span>{{ $t('community') }} : </span>
+                <span>{{ aboutCopy.project }} : </span>
                 <div class="community">
-                  <el-button @click="jump('https://github.com/maillab/cloud-mail')">
-                    Github
+                  <el-button @click="jump(brand.sourceUrl)">
+                    GitHub
                     <template #icon>
                       <Icon icon="codicon:github-inverted" width="22" height="22"/>
                     </template>
                   </el-button>
-                  <el-button @click="jump('https://t.me/cloud_mail_tg')">
-                    Telegram
+                  <el-button @click="jump(brand.issuesUrl)">
+                    {{ aboutCopy.feedback }}
                     <template #icon>
-                      <Icon icon="logos:telegram" width="30" height="30"/>
+                      <Icon icon="lucide:message-square" width="18" height="18"/>
                     </template>
                   </el-button>
                 </div>
               </div>
               <div class="concerning-item">
-                <span>{{ $t('support') }} : </span>
-                <el-button @click="jump('https://doc.skymail.ink/support.html')">
-                  {{ t('supportDesc') }}
+                <span>{{ aboutCopy.license }} : </span>
+                <el-button @click="jump(brand.licenseUrl)">
+                  MIT
                   <template #icon>
-                    <Icon color="#79D6B5" icon="simple-icons:buymeacoffee" width="20" height="20"/>
+                    <Icon icon="lucide:scale" width="18" height="18"/>
                   </template>
                 </el-button>
               </div>
               <div class="concerning-item">
                 <span>{{ $t('help') }} : </span>
-                <el-button @click="jump('https://doc.skymail.ink')">
+                <el-button @click="jump(brand.docsUrl)">
                   {{ t('document') }}
                   <template #icon>
                     <Icon color="#79D6B5" icon="fluent-color:document-32" width="18" height="18"/>
@@ -947,16 +946,21 @@ import loading from "@/components/loading/index.vue";
 import {getTextWidth} from "@/utils/text.js";
 import {fileToBase64} from "@/utils/file-utils.js"
 import {useI18n} from 'vue-i18n';
-import axios from "axios";
+import BrandMark from '@/components/brand-mark/index.vue';
+import {brand} from '@/brand.js';
 
 defineOptions({
   name: 'sys-setting'
 })
 
-const currentVersion = 'v3.3.0'
-const hasUpdate = ref(false)
-let getUpdateErrorCount = 1;
 const {t, locale} = useI18n();
+const aboutCopy = computed(() => locale.value === 'en' ? {
+  description: 'Make room for your mail. Omi Mail brings your domains and everyday conversations together.',
+  project: 'Project', feedback: 'Feedback', license: 'License',
+} : {
+  description: '让来信有归处。Omi Mail，把你的域名与日常往来放在一起。',
+  project: '项目', feedback: '问题反馈', license: '开源许可',
+});
 const firstLoading = ref(true)
 const settingReady = ref(false)
 const backgroundImage = ref('')
@@ -1100,7 +1104,6 @@ const tgMsgTextOption = [{label: t('show'), value: 'show'}, {label: t('hide'), v
 const tgMsgLabelWidth = computed(() => locale.value === 'en' ? '120px' : '100px');
 
 getSettings()
-getUpdate()
 
 function getSettings() {
   settingReady.value = false
@@ -1172,20 +1175,6 @@ const resendList = computed(() => {
 
   return list;
 });
-
-function getUpdate() {
-  if (getUpdateErrorCount > 5 || !getUpdateErrorCount) return
-  axios.get('https://api.github.com/repos/maillab/cloud-mail/releases/latest').then(({data}) => {
-    hasUpdate.value = data.name !== currentVersion
-    getUpdateErrorCount = 0
-  }).catch(e => {
-    getUpdateErrorCount++
-    setTimeout(() => {
-      getUpdate()
-    }, 2000)
-    console.error('检查更新失败：', e)
-  })
-}
 
 function saveAddVerifyCount() {
   if (!addVerifyCount.value) {
@@ -1709,6 +1698,7 @@ function jump(href) {
   const doc = document.createElement('a')
   doc.href = href
   doc.target = '_blank'
+  doc.rel = 'noopener noreferrer'
   doc.click()
 }
 
@@ -1859,6 +1849,9 @@ function editSetting(settingForm, refreshStatus = true) {
   flex-direction: column;
   gap: 10px;
 }
+
+.about .card-title { display: flex; align-items: center; gap: 10px; }
+.omi-about-description { color: var(--mail-muted); font-size: 13px; line-height: 1.7; margin-bottom: 4px; }
 
 .setting-item {
   display: grid;

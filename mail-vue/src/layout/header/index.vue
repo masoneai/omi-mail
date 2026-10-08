@@ -5,11 +5,13 @@
         <Icon icon="lucide:panel-left" width="19" height="19" />
       </button>
       <div class="page-title">
+        <span class="mobile-brand">{{ brandTitle }}</span>
         <span class="breadcrumb-item">{{ $t(route.meta.title) }}</span>
-        <span class="page-description">{{ pageDescription }}</span>
+        <span class="page-description" :title="pageDescription">{{ pageDescription }}</span>
       </div>
     </div>
     <div class="toolbar">
+      <span class="workspace-signature" :title="brandTitle"><BrandMark :size="18" /><span>{{ brandTitle }}</span></span>
       <button v-perm="'email:send'" class="mobile-compose icon-item" :aria-label="copy.compose" @click="openSend">
         <Icon icon="lucide:pen-line" width="19" />
       </button>
@@ -84,6 +86,7 @@ import {useSettingStore} from "@/store/setting.js";
 import {hasPerm} from "@/perm/perm.js"
 import {useI18n} from "vue-i18n";
 import {useAccountStore} from "@/store/account.js"
+import BrandMark from '@/components/brand-mark/index.vue'
 
 const {t, locale} = useI18n();
 const accountStore = useAccountStore();
@@ -93,21 +96,23 @@ const userStore = useUserStore();
 const uiStore = useUiStore();
 const logoutLoading = ref(false)
 const userInfoShow = ref(false)
+const brandTitle = computed(() => settingStore.settings.title || 'Omi Mail')
+const currentAddress = computed(() => accountStore.currentAccount.email || userStore.user.email || '')
 
-const copy = computed(() => locale.value === 'en' ? {
+const copy = computed(() => locale.value.startsWith('en') ? {
   navigation: 'Toggle navigation', compose: 'Compose', light: 'Switch to light mode', dark: 'Switch to dark mode',
-  notice: 'Announcements', profile: 'Account: ', inbox: 'Make room for what matters.',
-  sent: 'Every message, a new connection.', draft: 'Good ideas start here.', star: 'Keep the important things close.',
-  setting: 'Make this space yours.', management: 'Your mail workspace, in one place.'
+  notice: 'Announcements', profile: 'Account: ', inbox: 'Letters find their home here.',
+  sent: 'Letters on their way.', draft: 'A letter in the making.', star: 'Letters worth keeping close.',
+  setting: 'Arrange your little post office.', management: 'Your domains, addresses and people.'
 } : {
   navigation: '切换导航栏', compose: '写邮件', light: '切换浅色模式', dark: '切换深色模式',
-  notice: '查看公告', profile: '账号：', inbox: '把邮箱，留给重要的事。',
-  sent: '每一封邮件，都是一次连接。', draft: '好想法，从这里开始。', star: '重要的邮件，随时找得到。',
-  setting: '让这个空间更适合你。', management: '你的邮箱工作区，尽在掌握。'
+  notice: '查看公告', profile: '账号：', inbox: '每一封来信，都有归处。',
+  sent: '寄出的心意，都留在这里。', draft: '一封信，正在酝酿。', star: '值得珍藏的信，随手可见。',
+  setting: '布置你的专属邮局。', management: '管理你的域名、地址与成员。'
 })
 const pageDescription = computed(() => {
   const name = route.meta.name
-  if (name === 'content') return accountStore.currentAccount.email || copy.value.inbox
+  if (['content', 'email', 'send'].includes(name) && currentAddress.value) return currentAddress.value
   const copyName = name === 'email' ? 'inbox' : (name === 'send' ? 'sent' : name)
   return copy.value[copyName] || copy.value.management
 })
@@ -370,9 +375,11 @@ function formatName(email) {
 }
 .header-btn { display: flex; align-items: center; gap: 15px; min-width: 0; }
 .page-title { display: grid; gap: 3px; min-width: 0; text-align: left; }
+.mobile-brand { display: none; }
 .breadcrumb-item { font-size: 21px; line-height: 1.25; font-weight: 650; letter-spacing: -.5px; color: var(--mail-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .page-description { font-size: 11px; color: var(--mail-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.toolbar { display: flex; align-items: center; gap: 10px; }
+.toolbar { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.workspace-signature { display: flex; align-items: center; gap: 7px; max-width: 140px; margin-right: 7px; padding-right: 16px; border-right: 1px solid var(--mail-border); color: var(--mail-muted); font-size: 10px; font-weight: 550; letter-spacing: .2px; > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
 .icon-item {
   display: grid;
   place-items: center;
@@ -408,6 +415,8 @@ function formatName(email) {
 }
 @media (max-width: 1024px) {
   .mobile-compose { display: grid; }
+  .workspace-signature { display: none; }
+  .mobile-brand { display: block; color: var(--mail-muted); font-size: 9px; letter-spacing: .6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 @media (max-width: 767px) {
   .header { padding: 0 15px; gap: 10px; }

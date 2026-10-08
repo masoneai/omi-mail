@@ -25,16 +25,21 @@ export default defineConfig(({mode}) => {
                     theme_color: '#153b3c',
                     icons: [
                         {
-                            src: 'mail-icon.svg',
+                            src: 'omi-mark.svg',
                             sizes: 'any',
                             type: 'image/svg+xml',
                             purpose: 'any',
                         },
                         {
-                            src: 'mail-pwa.png',
+                            src: 'omi-icon-192.png',
                             sizes: '192x192',
                             type: 'image/png',
-                        }
+                        },
+                        {
+                            src: 'omi-icon-512.png',
+                            sizes: '512x512',
+                            type: 'image/png',
+                        },
                     ],
                 },
                 workbox: {
