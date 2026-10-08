@@ -55,8 +55,9 @@ button, input, select, textarea {
     background: none;
 }
 
-*:focus {
-    outline: none;
+button:focus-visible, a:focus-visible, [tabindex]:not(input):not(textarea):not(select):focus-visible {
+    outline: 2px solid var(--mail-accent);
+    outline-offset: 3px;
 }
 
 .el-message {
@@ -106,37 +107,52 @@ button, input, select, textarea {
 }
 
 :root {
-    --el-color-primary: #1890ff;
-    --el-color-primary-dark-2: #1064c0;
-    --el-color-primary-light-3: #4dabff;
-    --el-color-primary-light-5: #69c0ff;
-    --el-color-primary-light-7: #91d5ff;
-    --el-color-primary-light-9: #e6f7ff;
+    --mail-accent: #087f74;
+    --mail-on-accent: #ffffff;
+    --mail-canvas: #f4f7f6;
+    --mail-surface: #ffffff;
+    --mail-text: #213b3b;
+    --mail-muted: #768886;
+    --mail-border: #e3eae7;
+    --mail-radius: 18px;
+    --mail-sidebar-width: 220px;
+    --mail-account-width: 240px;
+    --mail-header-height: 76px;
+    --el-color-primary: var(--mail-accent);
+    --el-color-primary-dark-2: #05685f;
+    --el-color-primary-light-3: #51a59d;
+    --el-color-primary-light-5: #83bfb9;
+    --el-color-primary-light-7: #b5d9d5;
+    --el-color-primary-light-8: #d0e8e4;
+    --el-color-primary-light-9: #e8f4f1;
+    --el-bg-color: var(--mail-surface);
+    --el-bg-color-page: var(--mail-canvas);
+    --el-text-color-primary: var(--mail-text);
 
-    --extra-light-fill: #FAFCFF;
-    --settings-page-background: #fafbfc;
-    --light-ill: #F5F7FA;
-    --light-border: #E4E7ED;
+    --extra-light-fill: #f7faf9;
+    --settings-page-background: var(--mail-canvas);
+    --light-ill: #f0f5f3;
+    --light-border: var(--mail-border);
     --header-actions-border: inset 0 -1px 0 0 var(--el-border-color-lighter);
-    --aside-backgound: #191A23;
-    --aside-menu-active-background: #27282D;
+    --aside-backgound: #153b3c;
+    --aside-menu-active-background: #285051;
     --loadding-background: rgba(255, 255, 255, 0.8);
-    --dark-border: #CDD0D6;
-    --base-fill: #F0F2F5;
-    --regular-text-color: #585d69;
-    --light-border-color: #e7e9ec;
-    --aside-right-border: 3px 0 5px rgba(0, 21, 41, .35);
-    --choose-account-background: var(--el-color-primary-light-8);
+    --dark-border: #c7d5d0;
+    --base-fill: #eef4f1;
+    --regular-text-color: #5c716e;
+    --light-border-color: var(--mail-border);
+    --aside-right-border: 4px 0 20px rgba(18, 52, 47, .06);
+    --choose-account-background: #e8f4f0;
     --el-text-color-regular: var(--el-text-color-primary);
-    --email-scroll-content-color: rgba(25, 41, 59, 0.4);
-    --email-hover-background: #F2F6FC;
+    --email-scroll-content-color: #82918d;
+    --email-hover-background: #f1f8f5;
     --email-right-click-background: #FDF6EC;
     --login-border: none;
     --form-desc-color: #71717a;
-    --login-switch-color: #006be6;
+    --login-switch-color: var(--mail-accent);
     --scrollbar-track-color: #A8ABB2;
-    --base-border-color: #DCDFE6;
-    --secondary-text-color: #909399;
+    --base-border-color: var(--mail-border);
+    --secondary-text-color: var(--mail-muted);
     --message-block-color: rgba(0, 0, 0, 0);
     --loading-hide-transition: all 200ms;
     --vt-x: 50%;
@@ -145,32 +161,70 @@ button, input, select, textarea {
     --vt-easing: ease-out;
 }
 
-.dark {
-    --extra-light-fill: #191919;
+:root.dark {
+    --mail-accent: #6bd5bc;
+    --mail-on-accent: #163d34;
+    --el-color-primary: var(--mail-accent);
+    --mail-canvas: #132122;
+    --mail-surface: #1b2b2c;
+    --mail-text: #e0edE8;
+    --mail-muted: #99b0aa;
+    --mail-border: #314645;
+    --el-color-primary-dark-2: #8cdec9;
+    --el-color-primary-light-3: #509f8d;
+    --el-color-primary-light-5: #3d7469;
+    --el-color-primary-light-7: #2c504c;
+    --el-color-primary-light-8: #26433f;
+    --el-color-primary-light-9: #203731;
+    --el-bg-color: var(--mail-surface);
+    --el-bg-color-overlay: #213333;
+    --el-bg-color-page: var(--mail-canvas);
+    --el-text-color-primary: var(--mail-text);
+    --el-text-color-regular: #bccfc9;
+    --extra-light-fill: #182829;
     --settings-page-background: var(--extra-light-fill);
-    --light-ill: #262727;
-    --light-border: #414243;
-    --aside-backgound: #141414;
-    --aside-menu-active-background: rgba(255, 255, 255, 0.08);
+    --light-ill: #243737;
+    --light-border: var(--mail-border);
+    --aside-backgound: #102c2e;
+    --aside-menu-active-background: #224244;
     --header-actions-border: inset 0 -1px 0 0 var(--el-border-color-lighter);
     --loadding-background: rgba(0, 0, 0, 0.3);
-    --dark-border: #636466;
-    --base-fill: #303030;
-    --regular-text-color: #bfbdbc;
-    --light-border-color: #414243;
+    --dark-border: #48625d;
+    --base-fill: #263b38;
+    --regular-text-color: #bacdc6;
+    --light-border-color: var(--mail-border);
     --aside-right-border: 3px 0 5px #0A0A0A;
-    --choose-account-background: #39393A;
-    --email-scroll-content-color: rgba(255, 255, 255, 0.3);
-    --email-hover-background: #1D1E1F;
+    --choose-account-background: #263f38;
+    --email-scroll-content-color: #91a8a1;
+    --email-hover-background: #243a35;
     --email-right-click-background: var(--email-hover-background);
     --login-border: none;
     --form-desc-color: #8D9095;
     --login-switch-color: rgb(102, 177, 255);
     --scrollbar-track-color: #8D9095;
-    --base-border-color: #4C4D4F;
-    --secondary-text-color: #A3A6AD;
+    --base-border-color: var(--mail-border);
+    --secondary-text-color: var(--mail-muted);
     --message-block-color: rgba(30, 30, 30, 0.2);
-    --el-border-color: #414243 !important;
+    --el-border-color: var(--mail-border) !important;
+}
+
+.el-button, .el-input__wrapper, .el-select__wrapper {
+    border-radius: 9px;
+}
+
+html.dark .el-button--primary {
+    --el-button-text-color: var(--mail-on-accent);
+    --el-button-hover-text-color: var(--mail-on-accent);
+    --el-button-active-text-color: var(--mail-on-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root { --vt-duration: 0ms; }
+    *, *::before, *::after { scroll-behavior: auto !important; }
+}
+
+@media (max-width: 767px) {
+    :root { --mail-header-height: 68px; }
 }
 
 .el-input {

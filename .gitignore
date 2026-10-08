@@ -26,3 +26,22 @@ mail-vue/dist
 .wrangler
 .venv
 git-tools.js
+
+# Local credentials and databases; keep the checked-in frontend examples.
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+!mail-vue/.env.dev
+!mail-vue/.env.remote
+!mail-vue/.env.release
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

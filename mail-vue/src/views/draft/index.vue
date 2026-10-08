@@ -41,14 +41,14 @@ const scroll = ref({})
 
 watch(() => draftStore.setDraft, async () => {
 
-  const draft = toRaw(draftStore.setDraft)
+  const draft = {...toRaw(draftStore.setDraft)}
   const draftId = draft.draftId
-  const attachments = toRaw(draftStore.setDraft.attachments)
+  const attachments = toRaw(draftStore.setDraft.attachments) || []
 
   delete draft.draftId
   delete draft.attachments
 
-  if (!draft.content && !draft.subject && !(draft.receiveEmail.length > 0)) {
+  if (!draft.content && !draft.subject && !(draft.receiveEmail?.length > 0)) {
     await db.value.draft.delete(draftId);
     await db.value.att.delete(draftId);
     draftStore.refreshList++
@@ -62,30 +62,23 @@ watch(() => draftStore.setDraft, async () => {
   deep: true
 })
 
-watch(() => draftStore.refreshList, async () => {
-  const {list} = await getEmailList();
-    scroll.value.emailList.length = 0
-    scroll.value.handleList(list);
-    scroll.value.emailList.push(...list)
+watch(() => draftStore.refreshList, () => {
+  scroll.value?.refreshList();
 })
 
 function getEmailList() {
-  return new Promise((resolve, reject) => {
-    db.value.draft.orderBy('createTime').reverse().toArray().then(list => {
-      resolve({list})
-    })
-  })
+  return db.value.draft.orderBy('createTime').reverse().toArray().then(list => ({list}));
 }
 
 async function deleteDraft(draftIds) {
   await db.value.draft.bulkDelete(draftIds);
+  await db.value.att.bulkDelete(draftIds);
   draftStore.refreshList++
 }
 
 async function jumpContent(email) {
   const att = await db.value.att.get(email.draftId)
-  email.attachments = att.attachments
-  uiStore.writerRef.openDraft(email);
+  uiStore.writerRef.openDraft({...email, attachments: att?.attachments || []});
 }
 
 </script>

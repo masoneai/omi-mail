@@ -13,10 +13,9 @@
                @jump="jumpContent"
   >
     <template #first>
-      <Icon class="icon" @click="changeTimeSort" icon="material-symbols-light:timer-arrow-down-outline"
-            v-if="params.timeSort === 0" width="28" height="28"/>
-      <Icon class="icon" @click="changeTimeSort" icon="material-symbols-light:timer-arrow-up-outline" v-else
-            width="28" height="28"/>
+      <button class="sort-button" @click="changeTimeSort" :title="sortLabel" :aria-label="sortLabel">
+        <Icon :icon="params.timeSort === 0 ? 'solar:sort-from-top-to-bottom-linear' : 'solar:sort-from-bottom-to-top-linear'" width="19" height="19" />
+      </button>
     </template>
 
   </emailScroll>
@@ -29,8 +28,8 @@ import {useSettingStore} from "@/store/setting.js";
 import emailScroll from "@/components/email-scroll/index.vue"
 import {emailList, emailDelete, emailLatest, emailRead} from "@/request/email.js";
 import {starAdd, starCancel} from "@/request/star.js";
-import {defineOptions, h, onMounted, reactive, ref, watch} from "vue";
-import {sleep} from "@/utils/time-utils.js";
+import {computed, defineOptions, onActivated, onDeactivated, onBeforeUnmount, onMounted, reactive, ref, watch} from "vue";
+import {useI18n} from "vue-i18n";
 import router from "@/router/index.js";
 import {Icon} from "@iconify/vue";
 import { useRoute } from 'vue-router'
@@ -40,6 +39,12 @@ defineOptions({
 })
 
 const route = useRoute();
+const {locale} = useI18n();
+const sortLabel = computed(() => locale.value?.startsWith('en') ? (params.timeSort ? 'Oldest first · switch to newest first' : 'Newest first · switch to oldest first') : (params.timeSort ? '旧邮件优先 · 切换为最新优先' : '最新邮件优先 · 切换为旧邮件优先'));
+let pollTimer;
+let active = true;
+let disposed = false;
+let pollGeneration = 0;
 const emailStore = useEmailStore();
 const accountStore = useAccountStore();
 const settingStore = useSettingStore();
@@ -50,17 +55,23 @@ const params = reactive({
 
 onMounted(() => {
   emailStore.emailScroll = scroll;
-  latest()
+  scheduleLatest();
 })
+onActivated(() => { active = true; restartPolling(); });
+onDeactivated(() => { active = false; stopPolling(); });
+onBeforeUnmount(() => { disposed = true; stopPolling(); });
+watch(() => settingStore.settings.autoRefresh, restartPolling);
 
 
 watch(() => accountStore.currentAccountId, () => {
-  scroll.value.refreshList();
+  scroll.value?.refreshList();
+  restartPolling();
 })
 
 function changeTimeSort() {
   params.timeSort = params.timeSort ? 0 : 1
-  scroll.value.refreshList();
+  scroll.value?.refreshList();
+  restartPolling();
 }
 
 function jumpContent(email) {
@@ -72,62 +83,46 @@ function jumpContent(email) {
   router.push('/mail')
 }
 
-const existIds = new Set();
+function stopPolling() {
+  clearTimeout(pollTimer);
+  pollGeneration++;
+}
 
-async function latest() {
-  while (true) {
+function restartPolling() {
+  stopPolling();
+  scheduleLatest();
+}
 
-    let autoRefresh = settingStore.settings.autoRefresh;
-    await sleep(autoRefresh > 1 ? autoRefresh * 1000 : 3000);
+function scheduleLatest() {
+  clearTimeout(pollTimer);
+  const interval = Number(settingStore.settings.autoRefresh);
+  if (!active || disposed || interval <= 1) return;
+  const generation = pollGeneration;
+  pollTimer = setTimeout(() => latest(generation), interval * 1000);
+}
 
-    if (route.name !== 'email') {
-      continue;
+async function latest(generation) {
+  try {
+    if (disposed || !active || route.name !== 'email' || generation !== pollGeneration) return;
+    const currentList = scroll.value;
+    if (!currentList || currentList.firstLoad) return;
+    const accountId = accountStore.currentAccountId;
+    const allReceive = currentList.latestEmail?.allReceive;
+    const curTimeSort = params.timeSort;
+    if (accountId !== currentList.latestEmail?.reqAccountId) return;
+    const list = await emailLatest(currentList.latestEmail?.emailId || 0, accountId, allReceive);
+    if (disposed || !active || generation !== pollGeneration || accountId !== accountStore.currentAccountId || params.timeSort !== curTimeSort || allReceive !== accountStore.currentAccount.allReceive) return;
+    emailStore.applyFullList(list);
+    for (const email of list) {
+      email.reqAccountId = accountId;
+      email.allReceive = allReceive;
+      currentList.addItem(email);
     }
-
-    const latestId = scroll.value.latestEmail?.emailId
-
-    if (!scroll.value.firstLoad && autoRefresh > 1) {
-      try {
-        const accountId = accountStore.currentAccountId
-        const allReceive = scroll.value.latestEmail?.allReceive
-        const curTimeSort = params.timeSort
-        let list = []
-
-        //确保发起请求时最后一个邮件是当前账号的,或者
-        if (accountId === scroll.value.latestEmail?.reqAccountId) {
-          list = await emailLatest(latestId, accountId, allReceive);
-        }
-
-        //确保请求回来后，账号没有切换，时间排序没有改变，全部邮件类型没变
-        if (accountId === accountStore.currentAccountId && params.timeSort === curTimeSort && allReceive === accountStore.currentAccount.allReceive) {
-          if (list.length > 0) {
-            emailStore.applyFullList(list)
-
-            for (let email of list) {
-
-              email.reqAccountId = accountId;
-              email.allReceive = allReceive;
-
-              if (!existIds.has(email.emailId)) {
-
-                existIds.add(email.emailId)
-                scroll.value.addItem(email)
-
-                await sleep(50)
-              }
-
-            }
-
-          }
-
-        }
-      } catch (e) {
-        if (e.code === 401 || e.code === 403) {
-          settingStore.settings.autoRefresh = 0;
-        }
-        console.error(e)
-      }
-    }
+  } catch (error) {
+    if (error.code === 401 || error.code === 403) settingStore.settings.autoRefresh = 0;
+    console.error(error);
+  } finally {
+    if (generation === pollGeneration) scheduleLatest();
   }
 }
 
@@ -152,8 +147,7 @@ function getEmailList(emailId, size) {
 }
 
 </script>
-<style>
-.icon {
-  cursor: pointer;
-}
+<style scoped>
+.sort-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 9px; color: var(--mail-muted, var(--el-text-color-secondary)); cursor: pointer; transition: background .15s, color .15s; }
+.sort-button:hover { color: var(--mail-accent, var(--el-color-primary)); background: var(--el-color-primary-light-9); }
 </style>

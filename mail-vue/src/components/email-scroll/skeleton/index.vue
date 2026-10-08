@@ -1,5 +1,5 @@
 <template>
-  <div v-for="item in rows" style="background: var(--el-bg-color)">
+  <div v-for="item in rows" :key="item" class="skeleton-row" aria-hidden="true">
     <div :class="'email-row ' + type ">
       <el-checkbox disabled :class=" props.type === 'all-email' ? 'all-email-checkbox' : 'checkbox'"
       ></el-checkbox>
@@ -58,9 +58,7 @@
                 </template>
               </el-skeleton>
             </div>
-            <div class="del-status" v-if="item.isDel">
-              <el-tag type="danger" size="small">{{ $t('deleted') }}</el-tag>
-            </div>
+
           </div>
         </div>
       </div>
@@ -105,34 +103,7 @@ import {Icon} from "@iconify/vue";
 </script>
 
 <style scoped lang="scss">
-
-.phone-star {
-  display: none;
-}
-
-.pc-star {
-  display: flex;
-  width: 40px;
-}
-
-:deep(.el-skeleton__item) {
-  position: relative;
-  top: 2px;
-}
-
-@media (max-width: 1366px) {
-  .pc-star {
-    display: none;
-  }
-  .phone-star {
-    display: block;
-    align-self: end;
-    padding-right: 16px;
-    padding-top: 8px;
-  }
-  .star-pd {
-    padding-top: 6px !important;
-  }
-}
-
+.skeleton-row { background: var(--mail-surface, var(--el-bg-color)); }
+.pc-star { display: inline-flex; align-items: center; justify-content: center; width: 24px; color: var(--mail-border); }
+:deep(.el-skeleton__item) { border-radius: 4px; position: relative; top: 2px; }
 </style>

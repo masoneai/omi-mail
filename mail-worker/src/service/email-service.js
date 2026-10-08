@@ -8,6 +8,7 @@ import settingService from './setting-service';
 import accountService from './account-service';
 import BizError from '../error/biz-error';
 import emailUtils from '../utils/email-utils';
+import verifyUtils from '../utils/verify-utils';
 import fileUtils from '../utils/file-utils';
 import { Resend } from 'resend';
 import attService from './att-service';
@@ -261,9 +262,18 @@ const emailService = {
 			attachments = [] //附件
 		} = params;
 
-		const { resendTokens, r2Domain, send, domainList } = await settingService.query(c);
+		if (!Array.isArray(receiveEmail) || receiveEmail.length === 0) {
+			throw new BizError(t('emptyEmail'), 400);
+		}
+		if (receiveEmail.some(address => typeof address !== 'string' || !verifyUtils.isEmail(address.trim()))) {
+			throw new BizError(t('notEmail'), 400);
+		}
+		receiveEmail = receiveEmail.map(address => address.trim());
+		if (!Array.isArray(attachments) || attachments.length > 10) {
+			throw new BizError(t('attLimit'), 400);
+		}
 
-		let { imageDataList, html } = await attService.toImageUrlHtml(c, content);
+		const { resendTokens, r2Domain, send, domainList } = await settingService.query(c);
 
 		//判断是否关闭发件功能
 		if (send === settingConst.send.CLOSE) {
@@ -271,7 +281,16 @@ const emailService = {
 		}
 
 		const userRow = await userService.selectById(c, userId);
+		if (!userRow) {
+			throw new BizError(t('authExpired'), 401);
+		}
 		const roleRow = await roleService.selectById(c, userRow.type);
+		if (!roleRow) {
+			throw new BizError(t('roleNotExist'), 403);
+		}
+		const quotaLimit = Number(roleRow.sendCount) || 0;
+		const enforceQuota = c.env.admin !== userRow.email
+			&& ['day', 'count'].includes(roleRow.sendType) && quotaLimit > 0;
 
 		//判断接收方是不是全部为站内邮箱
 		const allInternal = receiveEmail.every(email => {
@@ -294,14 +313,14 @@ const emailService = {
 		}
 
 		//如果不是管理员，权限设置了发送次数
-		if (c.env.admin !== userRow.email && roleRow.sendCount) {
+		if (enforceQuota) {
 
-			if (userRow.sendCount >= roleRow.sendCount) {
+			if (Number(userRow.sendCount) >= quotaLimit) {
 				if (roleRow.sendType === 'day') throw new BizError(t('daySendLimit'), 403);
 				if (roleRow.sendType === 'count') throw new BizError(t('totalSendLimit'), 403);
 			}
 
-			if (userRow.sendCount + receiveEmail.length > roleRow.sendCount) {
+			if (Number(userRow.sendCount) + receiveEmail.length > quotaLimit) {
 				if (roleRow.sendType === 'day') throw new BizError(t('daySendLack'), 403);
 				if (roleRow.sendType === 'count') throw new BizError(t('totalSendLack'), 403);
 			}
@@ -327,7 +346,8 @@ const emailService = {
 		}
 
 		const domain = emailUtils.getDomain(accountRow.email);
-		const resendToken = resendTokens[domain];
+		const legacyTokenDomain = Object.keys(resendTokens).find(key => key.trim().toLowerCase() === domain);
+		const resendToken = resendTokens[domain] || resendTokens[legacyTokenDomain];
 		const useCloudflareEmail = !!c.env.email;
 
 		//如果接收方存在站外邮箱，又没有发信服务
@@ -349,51 +369,92 @@ const emailService = {
 
 			emailRow = await this.selectById(c, emailId);
 
-			if (!emailRow) {
+			if (!emailRow || emailRow.userId !== userId) {
 				throw new BizError(t('notExistEmailReply'));
 			}
 
 		}
 
+		let { imageDataList, html } = await attService.toImageUrlHtml(c, content);
+		if (imageDataList.length > 10) {
+			throw new BizError(t('imageAttLimit'), 400);
+		}
+
+		// Validate and normalize attachment data before the provider can accept a message.
+		attachments = await Promise.all(attachments.map(async attachment => {
+			if (!attachment || typeof attachment.filename !== 'string' || !attachment.filename.trim()) {
+				throw new BizError('Invalid attachment data', 400);
+			}
+			const encoded = await this.toAttachmentBase64(attachment);
+			if (encoded === null) {
+				throw new BizError('Invalid attachment data', 400);
+			}
+			try {
+				fileUtils.base64ToUint8Array(encoded);
+			} catch {
+				throw new BizError('Invalid attachment data', 400);
+			}
+			return { ...attachment, content: encoded,
+				type: attachment.type || attachment.contentType || 'application/octet-stream' };
+		}));
+
+		const reservationDay = new Date().toISOString().slice(0, 10);
+		if (enforceQuota && !await userService.reserveUserSendCount(c, receiveEmail.length, userId, quotaLimit)) {
+			throw new BizError(t(roleRow.sendType === 'day' ? 'daySendLack' : 'totalSendLack'), 403);
+		}
+
 		let sendResult = {};
+		let providerRejected = false;
 
 		//存在站外邮箱时，如果配置了 Cloudflare Email Service 就优先使用，否则使用 Resend
-		if (!allInternal) {
+		try {
+			if (!allInternal) {
 
-			if (useCloudflareEmail) {
-				sendResult = await this.sendByCloudflareEmail(c, {
-					name,
-					accountEmail: accountRow.email,
-					receiveEmail,
-					subject,
-					text,
-					html,
-					attachments: [...imageDataList, ...attachments],
-					sendType,
-					messageId: emailRow.messageId
-				});
-			} else {
-				sendResult = await this.sendByResend(resendToken, {
-					name,
-					accountEmail: accountRow.email,
-					receiveEmail,
-					subject,
-					text,
-					html,
-					attachments: [...imageDataList, ...attachments],
-					sendType,
-					messageId: emailRow.messageId
-				});
+				if (useCloudflareEmail) {
+					sendResult = await this.sendByCloudflareEmail(c, {
+						name,
+						accountEmail: accountRow.email,
+						receiveEmail,
+						subject,
+						text,
+						html,
+						attachments: [...imageDataList, ...attachments],
+						sendType,
+						messageId: emailRow.messageId
+					});
+				} else {
+					sendResult = await this.sendByResend(resendToken, {
+						name,
+						accountEmail: accountRow.email,
+						receiveEmail,
+						subject,
+						text,
+						html,
+						attachments: [...imageDataList, ...attachments],
+						sendType,
+						messageId: emailRow.messageId
+					});
+				}
+
 			}
-
+			if (sendResult.error) {
+				providerRejected = true;
+				throw new BizError(sendResult.error.message);
+			}
+		} catch (error) {
+			// Transport failures can occur after acceptance; retain quota when delivery is unknown.
+			// A daily reset discards yesterday's reservation; do not subtract from the new day.
+			if (providerRejected && enforceQuota && (roleRow.sendType !== 'day'
+				|| reservationDay === new Date().toISOString().slice(0, 10))) {
+				try {
+					await userService.releaseUserSendCount(c, receiveEmail.length, userId);
+				} catch (releaseError) {
+					console.error('Failed to release send quota', releaseError);
+				}
+			}
+			throw error;
 		}
-
-		const { data, error } = sendResult;
-
-
-		if (error) {
-			throw new BizError(error.message);
-		}
+		const { data } = sendResult;
 
 		imageDataList = imageDataList.map(item => ({...item, contentId: `<${item.contentId}>`}))
 
@@ -427,7 +488,7 @@ const emailService = {
 		}
 
 		//如果权限有发送次数增加用户发送次数
-		if (roleRow.sendCount && roleRow.sendType !== 'internal') {
+		if (!enforceQuota && roleRow.sendCount && roleRow.sendType !== 'internal') {
 			await userService.incrUserSendCount(c, receiveEmail.length, userId);
 		}
 
@@ -436,17 +497,11 @@ const emailService = {
 
 		//保存内嵌附件
 		if (imageDataList.length > 0) {
-			if (imageDataList.length > 10) {
-				throw new BizError(t('imageAttLimit'));
-			}
 			await attService.saveArticleAtt(c, imageDataList, userId, accountId, emailResult.emailId);
 		}
 
 		//保存普通附件
 		if (attachments?.length > 0) {
-			if (attachments.length > 10) {
-				throw new BizError(t('attLimit'));
-			}
 			await attService.saveSendAtt(c, attachments, userId, accountId, emailResult.emailId);
 		}
 
@@ -458,15 +513,14 @@ const emailService = {
 			await this.HandleOnSiteEmail(c, receiveEmail, emailResult, attList);
 		}
 
-		const dateStr = dayjs().format('YYYY-MM-DD');
-		let daySendTotal = await c.env.kv.get(kvConst.SEND_DAY_COUNT + dateStr);
-
-		//记录每天发件次数统计
-		if (!daySendTotal) {
-			await c.env.kv.put(kvConst.SEND_DAY_COUNT + dateStr, JSON.stringify(receiveEmail.length), { expirationTtl: 60 * 60 * 24 });
-		} else  {
-			daySendTotal = Number(daySendTotal) + receiveEmail.length
-			await c.env.kv.put(kvConst.SEND_DAY_COUNT + dateStr, JSON.stringify(daySendTotal), { expirationTtl: 60 * 60 * 24 });
+		// KV read/modify/write is approximate analytics, never the authoritative quota.
+		// A statistics failure must not turn an accepted send into a retryable failure.
+		try {
+			const dateStr = new Date().toISOString().slice(0, 10);
+			const daySendTotal = Number(await c.env.kv.get(kvConst.SEND_DAY_COUNT + dateStr)) || 0;
+			await c.env.kv.put(kvConst.SEND_DAY_COUNT + dateStr, JSON.stringify(daySendTotal + receiveEmail.length), { expirationTtl: 60 * 60 * 24 });
+		} catch (error) {
+			console.error('Failed to record send statistics', error);
 		}
 
 		return [ emailResult ];
@@ -643,22 +697,24 @@ const emailService = {
 		const { noRecipient  } = await settingService.query(c);
 
 		//查询所有收件人账号信息
-		let accountList = await orm(c).select().from(account).where(inArray(account.email, receiveEmail)).all();
+		let accountList = await orm(c).select().from(account).where(
+			sql`${account.email} COLLATE NOCASE IN (${sql.join(receiveEmail.map(address => sql`${address}`), sql`, `)})`
+		).all();
 
 		// 对于含+未精确匹配的收件人，获取基础地址账号
 		const plusEmails = receiveEmail.filter(
-			e => e.includes('+') && !accountList.some(a => a.email === e)
+			e => e.includes('+') && !accountList.some(a => a.email.toLowerCase() === e.toLowerCase())
 		);
 		const baseAccounts = [];
 		if (plusEmails.length > 0) {
 			const baseEmails = [...new Set(
 				plusEmails.map(e => emailUtils.getBaseEmail(e)).filter(Boolean)
 			)];
-			const existing = new Set(accountList.map(a => a.email));
-			const needed = baseEmails.filter(e => !existing.has(e));
+			const existing = new Set(accountList.map(a => a.email.toLowerCase()));
+			const needed = baseEmails.filter(e => !existing.has(e.toLowerCase()));
 			if (needed.length > 0) {
 				const rows = await orm(c).select().from(account)
-					.where(inArray(account.email, needed)).all();
+					.where(sql`${account.email} COLLATE NOCASE IN (${sql.join(needed.map(address => sql`${address}`), sql`, `)})`).all();
 				baseAccounts.push(...rows);
 			}
 		}
@@ -683,12 +739,12 @@ const emailService = {
 			emailValues.toName = emailUtils.getName(email);
 			emailValues.emailId = null;
 
-			let accountRow = allAccounts.find(accountRow => accountRow.email === email);
+			let accountRow = allAccounts.find(accountRow => accountRow.email.toLowerCase() === email.toLowerCase());
 
 			// 精确匹配不到时回退到主地址（去掉 +tag）
 			if (!accountRow && email.includes('+')) {
 				const baseEmail = emailUtils.getBaseEmail(email);
-				accountRow = allAccounts.find(accountRow => accountRow.email === baseEmail);
+				accountRow = allAccounts.find(accountRow => accountRow.email.toLowerCase() === baseEmail.toLowerCase());
 			}
 
 			//如果收件人存在就把邮件信息改成收件人的

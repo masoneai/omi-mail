@@ -6,6 +6,7 @@ import emailService from './service/email-service';
 import kvObjService from './service/kv-obj-service';
 import oauthService from './service/oauth-service';
 import analysisService from './service/analysis-service';
+import { runMaintenance } from './lib/maintenance';
 export default {
 	 async fetch(req, env, ctx) {
 
@@ -30,11 +31,14 @@ export default {
 			return;
 		}
 
-		await verifyRecordService.clearRecord({ env })
-		await userService.resetDaySendCount({ env })
-		await emailService.completeReceiveAll({ env })
-		await emailService.autoClean({ env })
-		await analysisService.refreshEchartsCache({ env })
-		await oauthService.clearNoBindOathUser({ env })
+		const scheduledTime = c.scheduledTime ?? Date.now();
+		await runMaintenance([
+			['verification records', () => verifyRecordService.clearRecord({ env }, scheduledTime)],
+			['daily send quotas', () => userService.resetDaySendCount({ env }, scheduledTime)],
+			['incomplete deliveries', () => emailService.completeReceiveAll({ env })],
+			['expired emails', () => emailService.autoClean({ env })],
+			['analytics', () => analysisService.refreshEchartsCache({ env })],
+			['unbound OAuth accounts', () => oauthService.clearNoBindOathUser({ env })],
+		]);
 	},
 };

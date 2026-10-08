@@ -60,7 +60,8 @@ function showNotice(data) {
     elNotification.close()
   }
 
-  const style = document.createElement('style');
+  const style = document.getElementById('mail-notice-style') || document.createElement('style');
+  style.id = 'mail-notice-style';
   style.innerHTML = `
   .custom-notice.el-notification {
     --el-notification-width: min(${data.noticeWidth}px,calc(100% - 30px)) !important;
@@ -88,13 +89,15 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  elNotification?.close()
+  document.getElementById('mail-notice-style')?.remove()
 })
 
 const handleResize = () => {
   if (['content','email','send'].includes(route.meta.name)) {
     if (innerWidth !==  window.innerWidth) {
       innerWidth = window.innerWidth;
-      uiStore.accountShow = window.innerWidth >= 767;
+      uiStore.accountShow = window.innerWidth > 767;
     }
   }
 }
@@ -128,7 +131,8 @@ const handleResize = () => {
   @media (max-width: 767px) {
     position: fixed;
     z-index: 100;
-    width: 260px;
+    width: var(--mail-account-width);
+    height: calc(100% - var(--mail-header-height));
   }
 }
 
@@ -137,8 +141,10 @@ const handleResize = () => {
   position: fixed;
   transform: translateX(-100%);
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   @media (max-width: 1024px) {
-    width: 260px;
+    width: var(--mail-account-width);
     z-index: 100;
   }
 }
@@ -146,8 +152,9 @@ const handleResize = () => {
 
 .main-box-show {
   display: grid;
-  grid-template-columns: 260px  1fr;
-  height: calc(100% - 60px);
+  grid-template-columns: var(--mail-account-width) minmax(0, 1fr);
+  height: calc(100% - var(--mail-header-height));
+  min-width: 0;
   @media (max-width: 767px) {
     grid-template-columns: 1fr;
   }
@@ -155,13 +162,16 @@ const handleResize = () => {
 
 .main-box-hide {
   display: grid;
-  grid-template-columns: 1fr;
-  height: calc(100% - 60px);
+  grid-template-columns: minmax(0, 1fr);
+  height: calc(100% - var(--mail-header-height));
+  min-width: 0;
 }
 
 
 .main-view {
-  background: var(--el-bg-color);
+  min-width: 0;
+  min-height: 0;
+  background: var(--mail-canvas);
 }
 
 

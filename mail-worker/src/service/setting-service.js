@@ -10,14 +10,36 @@ import {t} from '../i18n/i18n'
 import verifyRecordService from './verify-record-service';
 import userContext from '../security/user-context';
 import domainUtils from '../utils/domain-uitls';
+import { cloneSettings, createSettingsCache } from './settings-cache';
+import { applySettingsEnvironment, normalizeDomains } from './domain-settings';
+
+const settingsCache = createSettingsCache();
+
+function requestSettings(settingRow, env) {
+	let domains;
+	try {
+		domains = normalizeDomains(env.domain);
+	} catch (error) {
+		throw new BizError(t(error.message));
+	}
+	return applySettingsEnvironment(settingRow, env, domains);
+}
 
 const settingService = {
 
 	async refresh(c) {
+		settingsCache.invalidate(c.env.kv);
+		c.set?.('setting', undefined);
 		const settingRow = await orm(c).select().from(setting).get();
-		settingRow.resendTokens = JSON.parse(settingRow.resendTokens);
-		c.set('setting', settingRow);
+		if (!settingRow) {
+			throw new BizError('数据库未初始化 Database not initialized.');
+		}
+		if (typeof settingRow.resendTokens === 'string') {
+			settingRow.resendTokens = JSON.parse(settingRow.resendTokens);
+		}
 		await c.env.kv.put(KvConst.SETTING, JSON.stringify(settingRow));
+		settingsCache.set(c.env.kv, settingRow);
+		c.set?.('setting', requestSettings(cloneSettings(settingRow), c.env));
 	},
 
 	async query(c) {
@@ -26,41 +48,15 @@ const settingService = {
 			return c.get('setting')
 		}
 
-		const setting = await c.env.kv.get(KvConst.SETTING, { type: 'json' });
+		const setting = await settingsCache.get(c.env.kv, () =>
+			c.env.kv.get(KvConst.SETTING, { type: 'json' })
+		);
 
 		if (!setting) {
 			throw new BizError('数据库未初始化 Database not initialized.');
 		}
 
-		let domainList = c.env.domain;
-
-		if (typeof domainList === 'string') {
-			try {
-				domainList = JSON.parse(domainList)
-			} catch (error) {
-				throw new BizError(t('notJsonDomain'));
-			}
-		}
-
-		if (!c.env.domain) {
-			throw new BizError(t('noDomainVariable'));
-		}
-
-		domainList = domainList.map(item => '@' + item);
-		setting.domainList = domainList;
-
-		let projectLink = c.env.project_link;
-		if (typeof projectLink === 'string' && projectLink === 'false') {
-			projectLink = false
-		} else if (projectLink === false) {
-			projectLink = false
-		} else {
-			projectLink = true
-		}
-
-		setting.projectLink = projectLink;
-
-		setting.emailPrefixFilter = setting.emailPrefixFilter.split(",").filter(Boolean);
+		requestSettings(setting, c.env);
 
 		c.set?.('setting', setting);
 		return setting;
@@ -68,10 +64,12 @@ const settingService = {
 
 	async get(c, showSiteKey = false) {
 
-		const [settingRow, recordList] = await Promise.all([
-			await this.query(c),
+		const [requestSetting, recordList] = await Promise.all([
+			this.query(c),
 			verifyRecordService.selectListByIP(c)
 		]);
+		// Mask only the response; internal services still need the original credentials.
+		const settingRow = cloneSettings(requestSetting);
 
 
 		if (!showSiteKey) {

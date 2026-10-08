@@ -29,7 +29,8 @@ id = "2io01d4b299e481b9de060ece9e7785c"
 binding = "assets"
 directory = "./dist"
 not_found_handling = "single-page-application"
-run_worker_first = true
+# Only API and stored objects need Worker execution; serve the UI as static assets.
+run_worker_first = ["/api/*", "/static/*", "/attachments/*"]
 
 #[[send_email]]
 #name = "email"

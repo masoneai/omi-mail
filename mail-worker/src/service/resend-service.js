@@ -1,50 +1,30 @@
-import emailService from './email-service';
+import { and, eq, inArray } from 'drizzle-orm';
+import orm from '../entity/orm';
+import email from '../entity/email';
 import { emailConst } from '../const/entity-const';
-import BizError from '../error/biz-error';
+import { getResendTransition } from '../lib/resend-events';
 
 const resendService = {
+	async webhooks(c, event) {
+		const transition = getResendTransition(event);
+		if (!transition) return;
 
-	async webhooks(c, body) {
+		const { status, previous, resendEmailId, message } = transition;
+		const record = await orm(c).update(email).set({ status, message }).where(and(
+			eq(email.resendEmailId, resendEmailId),
+			eq(email.type, emailConst.type.SEND),
+			inArray(email.status, previous),
+		)).returning({ emailId: email.emailId }).get();
+		if (record) return;
 
-		const params = {
-			resendEmailId: body.data.email_id,
-			status: emailConst.status.SENT
-		}
+		// A late/duplicate event is acknowledged. Events racing the send-record
+		// insert must be retried by Resend rather than silently discarded.
+		const existing = await orm(c).select({ emailId: email.emailId }).from(email).where(and(
+			eq(email.resendEmailId, resendEmailId),
+			eq(email.type, emailConst.type.SEND),
+		)).limit(1).get();
+		if (!existing) throw new Error('Sent email record is not available yet');
+	},
+};
 
-		if (body.type === 'email.delivered') {
-			params.status = emailConst.status.DELIVERED
-			params.message = null
-		}
-
-		if (body.type === 'email.complained') {
-			params.status = emailConst.status.COMPLAINED
-			params.message = null
-		}
-
-		if (body.type === 'email.bounced') {
-			let bounce = body.data.bounce
-			bounce = JSON.stringify(bounce);
-			params.status = emailConst.status.BOUNCED
-			params.message = bounce
-		}
-
-		if (body.type === 'email.delivery_delayed') {
-			params.status = emailConst.status.DELAYED
-			params.message = null
-		}
-
-		if (body.type === 'email.failed') {
-			params.status = emailConst.status.FAILED
-			params.message = body.data.failed.reason
-		}
-
-		const emailRow = await emailService.updateEmailStatus(c, params)
-
-		if (!emailRow) {
-			throw new BizError('更新邮件状态记录失败');
-		}
-
-	}
-}
-
-export default resendService
+export default resendService;

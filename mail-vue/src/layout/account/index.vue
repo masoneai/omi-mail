@@ -1,126 +1,103 @@
 <template>
   <div class="account-box">
-    <div class="head-opt">
-      <Icon v-perm="'account:add'" class="icon add" icon="ion:add-outline" width="23" height="23" @click="add"/>
-      <Icon class="icon refresh" icon="ion:reload" width="18" height="18" @click="refresh"/>
+    <div class="account-heading">
+      <div class="heading-label">
+        <span class="eyebrow">{{ copy.workspace }}</span>
+        <h2>{{ copy.myMailboxes }}</h2>
+      </div>
+      <button class="icon-button refresh" type="button" :title="copy.refresh" :aria-label="copy.refresh"
+              :disabled="loading || followLoading" @click="refresh">
+        <Icon icon="lucide:rotate-cw" width="16" height="16" :class="{'is-spinning': loading || followLoading}"/>
+      </button>
+      <button class="icon-button drawer-close" type="button" :title="copy.closeMailboxes" :aria-label="copy.closeMailboxes" @click="closeDrawer">
+        <Icon icon="lucide:x" width="18" height="18"/>
+      </button>
     </div>
+    <button v-perm="'account:add'" class="add-mailbox" type="button" @click="add">
+      <Icon icon="lucide:plus" width="17" height="17"/>
+      <span>{{ $t('addAccount') }}</span>
+    </button>
     <el-scrollbar class="scrollbar" ref="scrollbarRef">
-      <div v-infinite-scroll="getAccountList" :infinite-scroll-distance="600" :infinite-scroll-immediate="false">
-        <el-card class="item" :class="itemBg(item.accountId)" v-for="(item, index) in accounts" :key="item.accountId"
-                 @click="changeAccount(item)">
-          <div class="account">
-            {{ item.email }}
-          </div>
-          <div class="opt">
-            <div class="send-email" @click.stop>
-              <Icon @click="setAllReceive(item)" v-if="!item.allReceive" icon="eva:email-fill" width="22" height="22" color="#fccb1a"/>
-              <Icon @click="setAllReceive(item)" v-else icon="flat-color-icons:folder" width="22" height="22" color="#23c4f1" />
-            </div>
-            <div class="settings" @click.stop>
-              <Icon icon="fluent-color:clipboard-24" width="22" height="22" @click.stop="copyAccount(item.email)"/>
-              <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"
-                    v-if="showNullSetting(item)"/>
-              <el-dropdown v-else>
-                <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"/>
+      <div class="account-list" v-infinite-scroll="getAccountList" :infinite-scroll-distance="600" :infinite-scroll-immediate="false">
+        <article class="item" :class="itemBg(item.accountId)" v-for="(item, index) in accounts" :key="item.accountId">
+          <button class="account-select" type="button" :aria-pressed="accountStore.currentAccountId === item.accountId"
+                  :title="item.email" @click="changeAccount(item, true)">
+            <span class="account-monogram">{{ emailParts(item.email).prefix.charAt(0).toUpperCase() }}</span>
+            <span class="account-identity">
+              <span class="account-prefix">{{ emailParts(item.email).prefix }}</span>
+              <span class="account-domain">@{{ emailParts(item.email).domain }}</span>
+            </span>
+            <Icon v-if="accountStore.currentAccountId === item.accountId" class="selected-check" icon="lucide:check" width="16" height="16"/>
+          </button>
+          <div class="account-actions">
+            <button class="receive-mode" :class="{'receive-all': item.allReceive}" type="button"
+                    :title="item.allReceive ? copy.aggregateOn : copy.aggregateOff"
+                    :aria-pressed="Boolean(item.allReceive)" :disabled="allReceiveLoading !== null" @click="setAllReceive(item)">
+              <Icon :icon="item.allReceive ? 'lucide:layers' : 'lucide:inbox'" width="14" height="14"/>
+              <span>{{ item.allReceive ? copy.aggregate : copy.individual }}</span>
+            </button>
+            <div class="settings">
+              <button class="icon-button" type="button" :title="copy.copyAddress" :aria-label="copy.copyAddress + ' ' + item.email" @click="copyAccount(item.email)">
+                <Icon icon="lucide:copy" width="15" height="15"/>
+              </button>
+              <el-dropdown v-if="!showNullSetting(item)" trigger="click">
+                <button class="icon-button" type="button" :title="copy.mailboxOptions" :aria-label="copy.mailboxOptions + ' ' + item.email">
+                  <Icon icon="lucide:ellipsis" width="17" height="17"/>
+                </button>
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item v-if="hasPerm('email:send')" @click="openSetName(item)">{{ $t('rename') }}</el-dropdown-item>
                     <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId" @click="setAsTop(item, index)">{{ $t('pin') }}</el-dropdown-item>
-                    <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId && hasPerm('account:delete')"
-                                      @click="remove(item)">{{ $t('delete') }}
-                    </el-dropdown-item>
+                    <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId && hasPerm('account:delete')" @click="remove(item)">{{ $t('delete') }}</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
             </div>
           </div>
-        </el-card>
-
-        <!-- Initial Loading Skeleton -->
+        </article>
         <template v-if="loading">
-          <el-skeleton v-for="i in skeletonRows" :key="i" animated>
+          <el-skeleton v-for="i in skeletonRows" :key="i" class="account-skeleton" animated>
             <template #template>
-              <el-card class="item">
-                <el-skeleton-item variant="p" style="width: 70%; height: 20px; margin-bottom: 25px"/>
-                <div style="display: flex; justify-content: space-between">
-                  <el-skeleton-item variant="text" style="width: 20px"/>
-                  <el-skeleton-item variant="text" style="width: 20px"/>
-                </div>
-              </el-card>
+              <el-skeleton-item variant="circle" style="width: 34px; height: 34px"/>
+              <div class="skeleton-copy"><el-skeleton-item variant="text"/><el-skeleton-item variant="text" style="width: 70%"/></div>
             </template>
           </el-skeleton>
         </template>
-
-        <!-- Follow Loading Skeleton -->
-        <template v-if="accounts.length > 0 && !noLoading">
-          <el-skeleton animated>
-            <template #template>
-              <el-card class="item">
-                <el-skeleton-item variant="p" style="width: 70%; height: 20px; margin-bottom: 20px"/>
-                <div style="display: flex; justify-content: space-between">
-                  <el-skeleton-item variant="text" style="width: 20px"/>
-                  <el-skeleton-item variant="text" style="width: 20px"/>
-                </div>
-              </el-card>
-            </template>
-          </el-skeleton>
-        </template>
-
-        <div class="noLoading" v-if="noLoading && accounts.length > 0">
-          <div>{{ $t('noMoreData') }}</div>
+        <el-skeleton v-if="accounts.length > 0 && !noLoading" class="account-skeleton" animated>
+          <template #template><el-skeleton-item variant="text" style="width: 75%"/></template>
+        </el-skeleton>
+        <div class="list-footnote" v-if="noLoading && accounts.length > 0">
+          <span class="footnote-line"></span>{{ copy.mailboxesEnd }}<span class="footnote-line"></span>
         </div>
-        <div class="empty" v-if="noLoading && accounts.length === 0">
-          <el-empty :description="$t('noMessagesFound')"/>
+        <div class="empty-mailboxes" v-if="noLoading && accounts.length === 0">
+          <Icon icon="lucide:mail-plus" width="30" height="30"/>
+          <p>{{ copy.noMailboxes }}</p>
         </div>
       </div>
-
     </el-scrollbar>
-    <el-dialog v-model="showAdd" :title="$t('addAccount')">
-      <div class="container">
-        <el-input v-model="addForm.email" ref="addRef" type="text" :placeholder="$t('emailAccount')" autocomplete="off" @keyup.enter="submit">
-          <template #append>
-            <div @click.stop="openSelect">
-              <el-select
-                  ref="mySelect"
-                  v-model="addForm.suffix"
-                  :placeholder="$t('select')"
-                  class="select"
-              >
-                <el-option
-                    v-for="item in domainList"
-                    :key="item"
-                    :label="item"
-                    :value="item"
-                />
-              </el-select>
-              <div>
-                <span>{{ addForm.suffix }}</span>
-                <Icon class="setting-icon" icon="mingcute:down-small-fill" width="20" height="20"/>
-              </div>
-            </div>
-          </template>
-        </el-input>
-        <el-button class="btn" type="primary" @click="submit" :loading="addLoading"
-        >{{ $t('add') }}
-        </el-button>
+    <div v-if="domainList.length" class="domain-panel">
+      <div class="domain-title"><Icon icon="lucide:globe-2" width="14" height="14"/><span>{{ copy.availableDomains }}</span><span class="domain-count">{{ domainList.length }}</span></div>
+      <div class="domain-chips">
+        <span v-for="domain in visibleDomains" :key="domain" class="domain-chip" :title="domain.replace(/^@/, '')">{{ domain.replace(/^@/, '') }}</span>
+        <span v-if="domainList.length > visibleDomains.length" class="domain-chip" :title="domainList.slice(visibleDomains.length).join(', ')">+{{ domainList.length - visibleDomains.length }}</span>
       </div>
-      <div
-          class="add-email-turnstile"
-          :class="verifyShow ? 'turnstile-show' : 'turnstile-hide'"
-          :data-sitekey="settingStore.settings.siteKey"
-          data-callback="onTurnstileSuccess"
-          data-error-callback="onTurnstileError"
-      >
+    </div>
+    <el-dialog v-model="showAdd" :title="$t('addAccount')" class="mailbox-dialog">
+      <p class="dialog-intro">{{ copy.newMailboxHint }}</p>
+      <div class="new-mailbox-fields">
+        <label class="field-label"><span>{{ copy.addressPrefix }}</span><el-input v-model="addForm.email" ref="addRef" type="text" :placeholder="copy.prefixPlaceholder" autocomplete="off" @keyup.enter="submit"/></label>
+        <label class="field-label domain-field"><span>{{ copy.domain }}</span><el-select v-model="addForm.suffix" :placeholder="$t('select')"><el-option v-for="item in domainList" :key="item" :label="item" :value="item"/></el-select></label>
+      </div>
+      <div class="address-preview"><Icon icon="lucide:at-sign" width="16" height="16"/><span>{{ (addForm.email || 'hello') + (addForm.suffix || '') }}</span></div>
+      <el-button class="btn" type="primary" @click="submit" :loading="addLoading">{{ $t('add') }}</el-button>
+      <div class="add-email-turnstile" :class="verifyShow ? 'turnstile-show' : 'turnstile-hide'" :data-sitekey="settingStore.settings.siteKey" data-callback="onTurnstileSuccess" data-error-callback="onTurnstileError">
         <span style="font-size: 12px;color: #F56C6C" v-if="botJsError">{{ $t('verifyModuleFailed') }}</span>
       </div>
     </el-dialog>
     <el-dialog v-model="setNameShow" :title="$t('changeUserName')">
       <div class="container">
-        <el-input v-model="accountName" type="text" :placeholder="$t('username')" autocomplete="off" @keyup.enter="setName">
-        </el-input>
-        <el-button class="btn" type="primary" @click="setName" :loading="setNameLoading"
-        >{{ $t('save') }}
-        </el-button>
+        <el-input v-model="accountName" type="text" :placeholder="$t('username')" autocomplete="off" @keyup.enter="setName"/>
+        <el-button class="btn" type="primary" @click="setName" :loading="setNameLoading">{{ $t('save') }}</el-button>
       </div>
     </el-dialog>
   </div>
@@ -142,22 +119,41 @@ import {useSettingStore} from "@/store/setting.js";
 import {useAccountStore} from "@/store/account.js";
 import {useEmailStore} from "@/store/email.js";
 import {useUserStore} from "@/store/user.js";
+import {useUiStore} from "@/store/ui.js";
 import {hasPerm} from "@/perm/perm.js"
 import {useI18n} from "vue-i18n";
 import {AccountAllReceiveEnum} from "@/enums/account-enum.js";
 
-const {t} = useI18n();
+const {t, locale} = useI18n();
 const userStore = useUserStore();
+const uiStore = useUiStore();
 const accountStore = useAccountStore();
 const settingStore = useSettingStore();
 const emailStore = useEmailStore();
 const showAdd = ref(false)
 const addLoading = ref(false);
 const domainList = computed(() => settingStore.domainList)
+const visibleDomains = computed(() => domainList.value.slice(0, 4))
+const copy = computed(() => locale.value.startsWith('zh') ? {
+  workspace: '邮箱空间', myMailboxes: '我的邮箱', refresh: '刷新邮箱', closeMailboxes: '关闭邮箱列表',
+  copyAddress: '复制邮箱地址', mailboxOptions: '邮箱选项', individual: '独立收件', aggregate: '汇总收件',
+  aggregateOn: '当前汇总全部邮箱的邮件；点击切换到独立收件', aggregateOff: '当前仅显示此邮箱的邮件；点击汇总全部邮箱',
+  mailboxesEnd: '每个地址，都有自己的空间', noMailboxes: '还没有邮箱地址', availableDomains: '可用域名',
+  newMailboxHint: '选一个邮箱前缀和域名，为不同用途创建专属地址。', addressPrefix: '邮箱前缀',
+  prefixPlaceholder: '例如 hello', domain: '选择域名'
+} : {
+  workspace: 'Your workspace', myMailboxes: 'My mailboxes', refresh: 'Refresh mailboxes', closeMailboxes: 'Close mailbox list',
+  copyAddress: 'Copy address', mailboxOptions: 'Mailbox options', individual: 'This mailbox', aggregate: 'All mailboxes',
+  aggregateOn: 'Showing mail from all your mailboxes. Click to show this mailbox only.', aggregateOff: 'Showing this mailbox only. Click to show all your mailboxes.',
+  mailboxesEnd: 'A place for every address', noMailboxes: 'No mailboxes yet', availableDomains: 'Available domains',
+  newMailboxHint: 'Choose a prefix and a domain to create an address for any part of your day.', addressPrefix: 'Address prefix',
+  prefixPlaceholder: 'e.g. hello', domain: 'Choose a domain'
+})
 const accounts = reactive([])
 const noLoading = ref(false)
 const loading = ref(false)
 const followLoading = ref(false);
+const allReceiveLoading = ref(null);
 const verifyShow = ref(false)
 const setNameShow = ref(false)
 const setNameLoading = ref(false)
@@ -169,7 +165,6 @@ let turnstileId = null
 const botJsError = ref(false)
 let verifyToken = ''
 let verifyErrorCount = 0
-let first = true
 const addForm = reactive({
   email: '',
   suffix: settingStore.domainList[0]
@@ -179,25 +174,29 @@ const queryParams = {
   size: 30
 }
 
-const mySelect = ref()
-
 if (hasPerm('account:query')) {
   getAccountList()
 }
 
 watch(() => accountStore.changeUserAccountName, () => {
-  accounts[0].name = accountStore.changeUserAccountName
+  const primaryAccount = accounts.find(item => item.accountId === userStore.user.account.accountId)
+  if (primaryAccount) primaryAccount.name = accountStore.changeUserAccountName
 })
 
 watch(() => settingStore.domainList, (list) => {
-  if (!addForm.suffix && list.length > 0) {
+  if (!list.includes(addForm.suffix) && list.length > 0) {
     addForm.suffix = list[0]
   }
 }, {immediate: true})
 
 
-const openSelect = () => {
-  mySelect.value.toggleMenu()
+function emailParts(email = '') {
+  const separator = email.lastIndexOf('@')
+  return {prefix: separator < 0 ? email : email.slice(0, separator), domain: separator < 0 ? '' : email.slice(separator + 1)}
+}
+
+function closeDrawer() {
+  uiStore.accountShow = false
 }
 
 window.onTurnstileError = (e) => {
@@ -272,15 +271,15 @@ function openSetName(accountItem) {
   setNameShow.value = true
 }
 
-function setAllReceive(account) {
-  let allReceiveAccount = accounts.find(account => account.allReceive === AccountAllReceiveEnum.ENABLED);
-  if (allReceiveAccount && allReceiveAccount.accountId !== account.accountId) allReceiveAccount.allReceive = AccountAllReceiveEnum.DISABLED;
-  account.allReceive = account.allReceive === AccountAllReceiveEnum.DISABLED ? AccountAllReceiveEnum.ENABLED : AccountAllReceiveEnum.DISABLED;
-  accountSetAllReceive(account.accountId).catch(() => {
-    account.allReceive = account.allReceive === AccountAllReceiveEnum.DISABLED ? AccountAllReceiveEnum.ENABLED : AccountAllReceiveEnum.DISABLED;
-    if (allReceiveAccount) allReceiveAccount.allReceive = AccountAllReceiveEnum.ENABLED;
-  }).then(() => {
-    if (account.allReceive === AccountAllReceiveEnum.ENABLED) {
+async function setAllReceive(account) {
+  if (allReceiveLoading.value !== null) return
+  const nextMode = account.allReceive === AccountAllReceiveEnum.DISABLED ? AccountAllReceiveEnum.ENABLED : AccountAllReceiveEnum.DISABLED
+  allReceiveLoading.value = account.accountId
+  try {
+    await accountSetAllReceive(account.accountId)
+    for (const mailbox of accounts) mailbox.allReceive = AccountAllReceiveEnum.DISABLED
+    account.allReceive = nextMode
+    if (nextMode === AccountAllReceiveEnum.ENABLED) {
       ElMessage({
         message: t('setSuccess'),
         type: 'success',
@@ -290,7 +289,11 @@ function setAllReceive(account) {
     changeAccount(account);
     emailStore.emailScroll?.refreshList();
     emailStore.sendScroll?.refreshList();
-  })
+  } catch {
+    // The request layer displays the error. Leave the saved selection intact.
+  } finally {
+    allReceiveLoading.value = null
+  }
 }
 
 
@@ -312,7 +315,10 @@ function remove(account) {
   }).then(() => {
     accountDelete(account.accountId).then(() => {
       const index = accounts.findIndex(item => item.accountId === account.accountId);
-      accounts.splice(index, 1);
+      if (index !== -1) accounts.splice(index, 1);
+      if (accountStore.currentAccountId === account.accountId) {
+        changeAccount(accounts[0] || userStore.user.account)
+      }
       if (accounts.length < queryParams.size) {
         getAccountList()
       }
@@ -326,7 +332,7 @@ function remove(account) {
 }
 
 function refresh() {
-  if (loading.value) {
+  if (loading.value || followLoading.value) {
     return
   }
   loading.value = false
@@ -335,14 +341,15 @@ function refresh() {
   queryParams.accountId = 0
   queryParams.lastSort = null
   getSkeletonRows();
-  scrollbarRef.value.setScrollTop(0)
+  scrollbarRef.value?.setScrollTop?.(0)
   accounts.splice(0, accounts.length)
   getAccountList()
 }
 
-function changeAccount(account) {
+function changeAccount(account, closeOnMobile = false) {
   accountStore.currentAccountId = account.accountId
   accountStore.currentAccount = account
+  if (closeOnMobile && window.innerWidth < 768) closeDrawer()
 }
 
 function add() {
@@ -411,15 +418,13 @@ function getAccountList() {
     if (list.length < queryParams.size) {
       noLoading.value = true
     }
-    if (accounts.length === 0) {
-      accountStore.currentAccount = list[0]
-    }
-
     accounts.push(...list)
+    const selectedAccount = accounts.find(item => item.accountId === accountStore.currentAccountId)
+    if (selectedAccount) accountStore.currentAccount = selectedAccount
+    else if (!accountStore.currentAccount?.accountId && accounts.length) changeAccount(accounts[0])
 
     loading.value = false
     followLoading.value = false
-    first = false
   }).catch(() => {
     loading.value = false
     followLoading.value = false
@@ -430,6 +435,8 @@ function getAccountList() {
 function submit() {
 
   if (addLoading.value) return
+
+  addForm.email = addForm.email.trim()
 
   if (!addForm.email) {
     ElMessage({
@@ -514,169 +521,67 @@ function submit() {
   })
 }
 </script>
-<style>
-path[fill="#ffdda1"] {
-  fill: #ffdd7d;
-}
-</style>
 <style scoped lang="scss">
 .account-box {
-
-  border-right: 1px solid var(--el-border-color) !important;
-  background-color: var(--el-bg-color);
   height: 100%;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-
-  .head-opt {
-    display: flex;
-    align-items: center;
-    height: 38px;
-    box-shadow: var(--header-actions-border);
-    padding-left: 10px;
-    padding-right: 10px;
-
-    .icon {
-      cursor: pointer;
-    }
-
-    .refresh {
-      margin-left: 10px;
-    }
-
-    .add {
-      margin-left: 2px;
-    }
-
-    .head-opt:not(.add) .refresh {
-      margin-left: 5px;
-    }
-  }
-
-  .scrollbar {
-    width: 100%;
-    height: calc(100% - 38px);
-    overflow: auto;
-    @media (max-width: 767px) {
-      height: calc(100% - 98px);
-    }
-
-    .empty {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100%;
-    }
-
-    .noLoading {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 10px 0;
-      color: var(--secondary-text-color);
-    }
-  }
-
-  .btn {
-    width: 100%;
-    margin-top: 15px;
-  }
-
-  .item {
-    background-color: var(--el-bg-color);
-    border-radius: 8px;
-    padding: 10px;
-    margin-bottom: 11px;
-    margin-left: 10px;
-    margin-right: 10px;
-    cursor: pointer;
-
-    .account {
-      font-weight: 400;
-      font-size: 15px;
-      margin-bottom: 20px;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
-
-    .opt {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: #888;
-
-      .settings {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .send-email {
-        display: flex;
-        align-items: center;
-      }
-    }
-
-    :deep(.el-card__body) {
-      padding: 0;
-    }
-  }
-
-  .item:first-child {
-    margin-top: 10px;
-  }
-
-  .item-choose {
-    background: var(--choose-account-background);
-  }
+  border-right: 1px solid var(--mail-border, var(--el-border-color));
+  background: var(--mail-surface, var(--el-bg-color));
+  color: var(--mail-text, var(--el-text-color-primary));
 }
-
-
-.setting-icon {
-  position: relative;
-  top: 6px;
-}
-
-:deep(.el-input-group__append) {
-  padding: 0 !important;
-  padding-left: 8px !important;
-  background: var(--el-bg-color);
-}
-
-:deep(.el-dialog) {
-  width: 400px !important;
-  @media (max-width: 440px) {
-    width: calc(100% - 40px) !important;
-    margin-right: 20px !important;
-    margin-left: 20px !important;
-  }
-}
-
-.select {
-  position: absolute;
-  right: 30px;
-  width: 100px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-:deep(.el-pagination .el-select) {
-  width: 100px;
-  background: var(--el-bg-color);
-}
-
-.add-email-turnstile {
-  margin-top: 15px;
-}
-
-.turnstile-show {
-  opacity: 1;
-}
-
-.turnstile-hide {
-  opacity: 0;
-  pointer-events: none;
-  position: fixed;
-}
-
+.account-heading { display: flex; align-items: center; gap: 5px; padding: 24px 18px 17px; }
+.heading-label { flex: 1; min-width: 0; }
+.eyebrow { display: block; font-size: 10px; letter-spacing: 1.5px; color: var(--mail-muted); text-transform: uppercase; margin-bottom: 5px; }
+h2 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 650; letter-spacing: .1px; }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 29px; height: 29px; padding: 0; border-radius: 7px; color: var(--mail-muted); cursor: pointer; transition: color .16s, background .16s; }
+.icon-button:hover { background: var(--mail-canvas); color: var(--mail-accent); }
+.icon-button:disabled { opacity: .5; cursor: wait; }
+.drawer-close { display: none; }
+.add-mailbox { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 16px 15px; padding: 10px 12px; border: 1px dashed var(--mail-border); border-radius: 9px; color: var(--mail-muted); font-size: 12px; font-weight: 550; cursor: pointer; transition: border-color .16s, color .16s, background .16s; }
+.add-mailbox:hover { color: var(--mail-accent); border-color: var(--mail-accent); background: color-mix(in srgb, var(--mail-accent) 5%, var(--mail-surface)); }
+.scrollbar { flex: 1; min-height: 0; }
+.account-list { padding: 0 14px 16px; }
+.item { margin-bottom: 10px; border: 1px solid var(--mail-border); border-radius: 11px; background: var(--mail-surface); transition: border-color .16s, background .16s, box-shadow .16s; overflow: hidden; }
+.item:hover { border-color: color-mix(in srgb, var(--mail-accent) 45%, var(--mail-border)); }
+.item-choose { border-color: color-mix(in srgb, var(--mail-accent) 35%, var(--mail-border)); background: color-mix(in srgb, var(--mail-accent) 5%, var(--mail-surface)); box-shadow: 0 3px 12px color-mix(in srgb, var(--mail-accent) 5%, transparent); }
+.account-select { display: flex; align-items: center; width: 100%; gap: 10px; padding: 15px 11px 12px; text-align: left; cursor: pointer; }
+.account-monogram { display: grid; place-items: center; width: 33px; height: 33px; border-radius: 10px; flex-shrink: 0; background: var(--mail-canvas); color: var(--mail-muted); font-size: 14px; font-weight: 650; }
+.item-choose .account-monogram { color: var(--mail-accent); background: color-mix(in srgb, var(--mail-accent) 11%, var(--mail-surface)); }
+.account-identity { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.account-prefix { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 650; font-size: 13px; color: var(--mail-text); }
+.account-domain { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--mail-muted); }
+.selected-check { color: var(--mail-accent); flex-shrink: 0; }
+.account-actions { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px 7px; border-top: 1px solid color-mix(in srgb, var(--mail-border) 65%, transparent); gap: 2px; }
+.receive-mode { display: flex; align-items: center; gap: 4px; min-height: 29px; padding: 0 5px; border-radius: 6px; font-size: 10px; color: var(--mail-muted); cursor: pointer; }
+.receive-mode:hover, .receive-all { color: var(--mail-accent); background: color-mix(in srgb, var(--mail-accent) 6%, transparent); }
+.receive-mode:disabled { opacity: .6; cursor: wait; }
+.settings { display: flex; align-items: center; gap: 1px; }
+.account-skeleton { display: flex; align-items: center; gap: 10px; border: 1px solid var(--mail-border); border-radius: 11px; padding: 16px 12px; margin-bottom: 10px; }
+.skeleton-copy { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+.list-footnote { display: flex; align-items: center; gap: 7px; justify-content: center; color: var(--mail-muted); opacity: .65; font-size: 10px; padding: 8px 6px; }
+.footnote-line { height: 1px; background: var(--mail-border); flex: 1; }
+.empty-mailboxes { display: flex; flex-direction: column; align-items: center; color: var(--mail-muted); gap: 12px; padding: 30px 0; }
+.empty-mailboxes p { margin: 0; font-size: 12px; }
+.domain-panel { flex-shrink: 0; padding: 17px 18px 20px; border-top: 1px solid var(--mail-border); }
+.domain-title { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--mail-muted); margin-bottom: 10px; }
+.domain-count { margin-left: auto; font-size: 10px; min-width: 18px; text-align: center; background: var(--mail-canvas); border-radius: 5px; line-height: 18px; }
+.domain-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.domain-chip { font-size: 10px; line-height: 19px; padding: 0 5px; background: var(--mail-canvas); border: 1px solid var(--mail-border); border-radius: 5px; color: var(--mail-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn { width: 100%; margin-top: 17px; }
+.dialog-intro { color: var(--mail-muted); font-size: 13px; margin: 0 0 20px; line-height: 1.7; }
+.new-mailbox-fields { display: grid; grid-template-columns: 1fr 1.15fr; gap: 12px; }
+.field-label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--mail-text); }
+.domain-field :deep(.el-select) { width: 100%; }
+.address-preview { display: flex; align-items: center; gap: 8px; margin-top: 15px; padding: 11px; border: 1px solid var(--mail-border); border-radius: 8px; background: var(--mail-canvas); color: var(--mail-accent); font-size: 12px; overflow-wrap: anywhere; }
+:deep(.el-dialog) { width: 430px !important; border-radius: 16px; padding: 24px; }
+.add-email-turnstile { margin-top: 15px; }
+.turnstile-show { opacity: 1; }
+.turnstile-hide { opacity: 0; pointer-events: none; position: fixed; }
+.is-spinning { animation: refresh-spin 1s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
+@media (max-width: 767px) { .drawer-close { display: inline-flex; } .account-heading { padding-top: 20px; } }
+@media (max-width: 480px) { :deep(.el-dialog) { width: calc(100% - 32px) !important; margin-left: 16px !important; margin-right: 16px !important; padding: 22px; } .new-mailbox-fields { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .is-spinning { animation: none; } }
 </style>

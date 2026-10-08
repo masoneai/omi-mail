@@ -12,6 +12,7 @@ import userService from '../service/user-service';
 import telegramService from '../service/telegram-service';
 import aiService from '../service/ai-service';
 import webhookService from '../service/webhook-service';
+import { checkBlock, normalizeParsedEmail, readRawEmail, recipientName, splitEmailSetting } from './email-helpers';
 
 export async function email(message, env, ctx) {
 
@@ -43,25 +44,7 @@ export async function email(message, env, ctx) {
 			return;
 		}
 
-		const reader = message.raw.getReader();
-		let content = '';
-
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			content += new TextDecoder().decode(value);
-		}
-
-		const email = await PostalMime.parse(content);
-
-
-		const blockFlag = checkBlock(blackSubject, blackContent, blackFrom, email);
-
-		if (blockFlag) {
-			message.setReject('Message rejected');
-			return;
-		}
-
+		// Reject recipient-level failures before buffering or parsing MIME data.
 		let account = await accountService.selectByEmailIncludeDel({ env: env }, message.to);
 
 		if (!account) {
@@ -76,34 +59,45 @@ export async function email(message, env, ctx) {
 			return;
 		}
 
-		let userRow = {}
-
+		let banEmail = '';
 		if (account) {
-			 userRow = await userService.selectByIdIncludeDel({ env: env }, account.userId);
-		}
-
-		if (account && userRow.email !== env.admin) {
-
-			let { banEmail, availDomain } = await roleService.selectByUserId({ env: env }, account.userId);
-
-			if (!roleService.hasAvailDomainPerm(availDomain, message.to)) {
-				message.setReject('The recipient is not authorized to use this domain.');
+			const userRow = await userService.selectByIdIncludeDel({ env }, account.userId);
+			if (!userRow) {
+				message.setReject('Recipient not found');
 				return;
 			}
+			if (userRow.email !== env.admin) {
+				const role = await roleService.selectByUserId({ env }, account.userId);
 
-			if(roleService.isBanEmail(banEmail, email.from.address)) {
-				message.setReject('The recipient is disabled from receiving emails.');
-				return;
+				// A LEFT JOIN can return an object with null permission fields when
+				// the account's role is missing. Do not treat that as unrestricted.
+				if (!role || typeof role.availDomain !== 'string' || typeof role.banEmail !== 'string' || !roleService.hasAvailDomainPerm(role.availDomain, message.to)) {
+					message.setReject('The recipient is not authorized to use this domain.');
+					return;
+				}
+
+				banEmail = role.banEmail;
+				if (splitEmailSetting(banEmail).includes('*')) {
+					message.setReject('The recipient is disabled from receiving emails.');
+					return;
+				}
 			}
-
 		}
 
-
-		if (!email.to) {
-			email.to = [{ address: message.to, name: emailUtils.getName(message.to)}]
+		const rawEmail = await readRawEmail(message.raw);
+		const email = normalizeParsedEmail(await PostalMime.parse(rawEmail.buffer), message.from, message.to);
+		if (checkBlock(blackSubject, blackContent, blackFrom, email)) {
+			message.setReject('Message rejected');
+			return;
 		}
 
-		const toName = email.to.find(item => item.address === message.to)?.name || '';
+		// Sender-specific bans still use the parsed From header, as before.
+		if (banEmail && roleService.isBanEmail(banEmail, email.from.address)) {
+			message.setReject('The recipient is disabled from receiving emails.');
+			return;
+		}
+
+		const toName = recipientName(email.to, message.to);
 		const code = await aiService.extractCode({ env }, email, { aiCode, aiCodeFilter });
 
 		const params = {
@@ -152,16 +146,22 @@ export async function email(message, env, ctx) {
 			if (attachments.length > 0) {
 				await attService.addAtt({ env }, attachments);
 			}
+			emailRow = await emailService.completeReceive({ env }, account ? emailConst.status.RECEIVE : emailConst.status.NOONE, emailRow.emailId);
 		} catch (e) {
-			console.error(e);
+			// A failed attachment write must not turn into a successful delivery.
+			// Remove this incomplete row so a retry does not leave a duplicate.
+			try {
+				await emailService.physicsDelete({ env }, { emailIds: String(emailRow.emailId) });
+			} catch (cleanupError) {
+				console.error('清理未完成邮件失败: ', cleanupError);
+			}
+			throw e;
 		}
-
-		emailRow = await emailService.completeReceive({ env }, account ? emailConst.status.RECEIVE : emailConst.status.NOONE, emailRow.emailId);
 
 
 		if (ruleType === settingConst.ruleType.RULE) {
 
-			const emails = ruleEmail.split(',');
+			const emails = splitEmailSetting(ruleEmail);
 
 			if (!emails.includes(message.to)) {
 				return;
@@ -169,15 +169,29 @@ export async function email(message, env, ctx) {
 
 		}
 
-		//转发到TG
+		const notifications = [];
+		// Network notifications run only after the email and attachments are saved.
 		if (tgBotStatus === settingConst.tgBotStatus.OPEN && tgChatId) {
-			await telegramService.sendEmailToBot({ env }, emailRow)
+			notifications.push(Promise.resolve().then(() => telegramService.sendEmailToBot({ env }, emailRow)));
+		}
+		if (webhookStatus === settingConst.webhookStatus.OPEN && webhookUrl) {
+			notifications.push(Promise.resolve().then(() => webhookService.sendEmail({ env }, emailRow, webhookUrl, webhookRetry, webhookSecret)));
+		}
+		const notificationTask = Promise.allSettled(notifications).then(results => {
+			for (const result of results) {
+				if (result.status === 'rejected') console.error('邮件通知失败: ', result.reason);
+			}
+		});
+		if (ctx?.waitUntil) {
+			ctx.waitUntil(notificationTask);
+		} else {
+			await notificationTask;
 		}
 
 		//转发到其他邮箱
 		if (forwardStatus === settingConst.forwardStatus.OPEN && forwardEmail) {
 
-			const emails = forwardEmail.split(',');
+			const emails = splitEmailSetting(forwardEmail);
 
 			await Promise.all(emails.map(async email => {
 
@@ -191,41 +205,8 @@ export async function email(message, env, ctx) {
 
 		}
 
-		//转发到 Webhook
-		if (webhookStatus === settingConst.webhookStatus.OPEN && webhookUrl) {
-			await webhookService.sendEmail({ env }, emailRow, webhookUrl, webhookRetry, webhookSecret);
-		}
-
 	} catch (e) {
 		console.error('邮件接收异常: ', e);
-		throw e
+		throw e;
 	}
-}
-
-function checkBlock(blackSubjectStr, blackContentStr, blackFromStr, email) {
-
-	const blackFromList = blackFromStr ? blackFromStr.split(',') : []
-	const blackContentList = blackContentStr ? blackContentStr.split(',') : []
-	const blackSubjectList = blackSubjectStr ? blackSubjectStr.split(',') : []
-
-	for (const blackSubject of blackSubjectList) {
-		if (email.subject?.includes(blackSubject)) {
-			return true
-		}
-	}
-
-	for (const blackContent of blackContentList) {
-		if (email.html?.includes(blackContent) || email.text?.includes(blackContent)) {
-			return true
-		}
-	}
-
-	for (const blackFrom of blackFromList) {
-		if (email.from.address === blackFrom || emailUtils.getDomain(email.from.address) === blackFrom) {
-			return true
-		}
-	}
-
-	return false
-
 }

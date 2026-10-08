@@ -313,6 +313,25 @@ const userService = {
 		}).where(eq(user.userId, userId)).run();
 	},
 
+	async reserveUserSendCount(c, quantity, userId, limit) {
+		const row = await c.env.db.prepare(
+			`UPDATE user
+			 SET send_count = CAST(COALESCE(send_count, 0) AS INTEGER) + ?
+			 WHERE user_id = ?
+			   AND CAST(COALESCE(send_count, 0) AS INTEGER) + ? <= ?
+			 RETURNING user_id`
+		).bind(quantity, userId, quantity, limit).first();
+		return !!row;
+	},
+
+	async releaseUserSendCount(c, quantity, userId) {
+		await c.env.db.prepare(
+			`UPDATE user
+			 SET send_count = MAX(CAST(COALESCE(send_count, 0) AS INTEGER) - ?, 0)
+			 WHERE user_id = ?`
+		).bind(quantity, userId).run();
+	},
+
 	async updateAllUserType(c, type, curType) {
 		await orm(c)
 			.update(user)
@@ -325,7 +344,8 @@ const userService = {
 
 		let { email, type, password } = params;
 
-		if (!c.env.domain.includes(emailUtils.getDomain(email))) {
+		const { domainList } = await settingService.query(c);
+		if (!domainList.includes('@' + emailUtils.getDomain(email))) {
 			throw new BizError(t('notEmailDomain'));
 		}
 
@@ -364,9 +384,9 @@ const userService = {
 		await accountService.insert(c, { userId: userId, email, type, name: emailUtils.getName(email) });
 	},
 
-	async resetDaySendCount(c) {
+	async resetDaySendCount(c, scheduledTime = Date.now()) {
 		// 仅 UTC 0 点执行，便于配合每小时 cron
-		if (new Date().getUTCHours() !== 0) {
+		if (new Date(scheduledTime).getUTCHours() !== 0) {
 			return;
 		}
 		const roleList = await roleService.selectByIdsAndSendType(c, 'email:send', roleConst.sendType.DAY);
