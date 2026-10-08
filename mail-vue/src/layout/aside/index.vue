@@ -67,7 +67,7 @@ const accountStore = useAccountStore()
 const userStore = useUserStore()
 const route = useRoute()
 const { locale } = useI18n()
-const activeName = computed(() => route.meta.name === 'content' ? 'email' : route.meta.name)
+const activeName = computed(() => route.meta.name === 'content' ? uiStore.messageSource : route.meta.name)
 const brandTitle = computed(() => settingStore.settings.title || 'Omi Mail')
 const domains = computed(() => [...new Set((settingStore.domainList.length ? settingStore.domainList : settingStore.settings.domainList || [])
   .map(domain => String(domain).replace(/^@/, '')))])
@@ -87,6 +87,7 @@ const copy = computed(() => {
   }
 })
 const mailboxItems = computed(() => [
+  { name: 'unified-inbox', label: 'allInboxes', icon: 'lucide:layers' },
   { name: 'email', label: 'inbox', icon: 'lucide:inbox' },
   { name: 'send', label: 'sent', icon: 'lucide:send', perm: 'email:send' },
   { name: 'draft', label: 'drafts', icon: 'lucide:file-pen-line', perm: 'email:send' },

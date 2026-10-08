@@ -9,6 +9,7 @@
                :time-sort="params.timeSort"
                :email-read="emailRead"
                :show-unread="true"
+               :show-account-icon="!allMailboxes"
                actionLeft="4px"
                @jump="jumpContent"
   >
@@ -38,6 +39,9 @@ defineOptions({
   name: 'email'
 })
 
+const props = defineProps({
+  allMailboxes: { type: Boolean, default: false }
+})
 const route = useRoute();
 const {locale} = useI18n();
 const sortLabel = computed(() => locale.value?.startsWith('en') ? (params.timeSort ? 'Oldest first · switch to newest first' : 'Newest first · switch to oldest first') : (params.timeSort ? '旧邮件优先 · 切换为最新优先' : '最新邮件优先 · 切换为旧邮件优先'));
@@ -52,18 +56,36 @@ const scroll = ref({})
 const params = reactive({
   timeSort: 0,
 })
+const listScope = computed(() => ({
+  accountId: props.allMailboxes ? 0 : accountStore.currentAccountId,
+  allReceive: props.allMailboxes ? 1 : (accountStore.currentAccount.allReceive ?? 0)
+}));
+const scopeKey = computed(() => `${props.allMailboxes ? 'all' : 'single'}:${listScope.value.accountId}:${listScope.value.allReceive}`);
+let lastRequestScopeKey;
+
+// Both inbox routes share one cached list; scope changes invalidate its results.
+function activateList() {
+  active = true;
+  emailStore.emailScroll = scroll;
+  if (lastRequestScopeKey !== scopeKey.value ||
+      (!scroll.value?.firstLoad && scroll.value?.latestEmail?.scopeKey !== scopeKey.value)) {
+    scroll.value?.refreshList();
+  }
+  restartPolling();
+}
 
 onMounted(() => {
   emailStore.emailScroll = scroll;
   scheduleLatest();
 })
-onActivated(() => { active = true; restartPolling(); });
+onActivated(activateList);
 onDeactivated(() => { active = false; stopPolling(); });
 onBeforeUnmount(() => { disposed = true; stopPolling(); });
 watch(() => settingStore.settings.autoRefresh, restartPolling);
 
 
-watch(() => accountStore.currentAccountId, () => {
+watch(scopeKey, () => {
+  if (!active) return;
   scroll.value?.refreshList();
   restartPolling();
 })
@@ -103,19 +125,21 @@ function scheduleLatest() {
 
 async function latest(generation) {
   try {
-    if (disposed || !active || route.name !== 'email' || generation !== pollGeneration) return;
+    const expectedRoute = props.allMailboxes ? 'unified-inbox' : 'email';
+    if (disposed || !active || route.name !== expectedRoute || generation !== pollGeneration) return;
     const currentList = scroll.value;
     if (!currentList || currentList.firstLoad) return;
-    const accountId = accountStore.currentAccountId;
-    const allReceive = currentList.latestEmail?.allReceive;
+    const { accountId, allReceive } = listScope.value;
+    const requestScopeKey = scopeKey.value;
     const curTimeSort = params.timeSort;
-    if (accountId !== currentList.latestEmail?.reqAccountId) return;
+    if (requestScopeKey !== currentList.latestEmail?.scopeKey) return;
     const list = await emailLatest(currentList.latestEmail?.emailId || 0, accountId, allReceive);
-    if (disposed || !active || generation !== pollGeneration || accountId !== accountStore.currentAccountId || params.timeSort !== curTimeSort || allReceive !== accountStore.currentAccount.allReceive) return;
+    if (disposed || !active || generation !== pollGeneration || requestScopeKey !== scopeKey.value || params.timeSort !== curTimeSort || route.name !== expectedRoute) return;
     emailStore.applyFullList(list);
     for (const email of list) {
       email.reqAccountId = accountId;
       email.allReceive = allReceive;
+      email.scopeKey = requestScopeKey;
       currentList.addItem(email);
     }
   } catch (error) {
@@ -135,13 +159,15 @@ function cancelStar(email) {
 }
 
 function getEmailList(emailId, size) {
-  const accountId =  accountStore.currentAccountId;
-  const allReceive = accountStore.currentAccount.allReceive;
+  const { accountId, allReceive } = listScope.value;
+  const requestScopeKey = scopeKey.value;
+  lastRequestScopeKey = requestScopeKey;
   return emailStore.fetchList(full =>
     emailList(accountId, allReceive, emailId, params.timeSort, size, 0, full)
   ).then(data => {
     data.latestEmail.reqAccountId = accountId;
     data.latestEmail.allReceive = allReceive;
+    data.latestEmail.scopeKey = requestScopeKey;
     return data;
   })
 }

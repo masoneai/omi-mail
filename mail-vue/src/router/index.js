@@ -12,6 +12,17 @@ const routes = [
         component: () => import('@/layout/index.vue'),
         children: [
             {
+                path: '/all-inboxes',
+                name: 'unified-inbox',
+                component: () => import('@/views/email/index.vue'),
+                props: { allMailboxes: true },
+                meta: {
+                    title: 'allInboxes',
+                    name: 'unified-inbox',
+                    menu: true
+                }
+            },
+            {
                 path: '/inbox',
                 name: 'email',
                 component: () => import('@/views/email/index.vue'),
@@ -111,6 +122,10 @@ router.beforeEach((to, from, next) => {
 
     if (token && to.path.startsWith('/login')) {
         return next(from.path)
+    }
+
+    if (to.name === 'content' && from.meta.menu) {
+        useUiStore().messageSource = from.meta.name
     }
 
     next()

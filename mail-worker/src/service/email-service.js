@@ -109,13 +109,9 @@ const emailService = {
 			emailId: email.emailId,
 			accountId: email.accountId,
 			userId: email.userId,
-		}).from(email).where(
-			and(
-				eq(email.userId, userId),
-				eq(email.type, type),
-				eq(email.isDel, isDel.NORMAL),
-				allReceive ? undefined : eq(email.accountId, accountId)
-			))
+		}).from(email)
+			.innerJoin(account, eq(account.accountId, email.accountId))
+			.where(and(...countFilters))
 			.orderBy(desc(email.emailId)).limit(1).get();
 
 		let [list, totalRow, latestEmail] = await Promise.all([listQuery, totalQuery, latestEmailQuery]);
