@@ -104,21 +104,21 @@ const currentAddress = computed(() => accountStore.currentAccount.email || userS
 const copy = computed(() => locale.value.startsWith('en') ? {
   navigation: 'Toggle navigation', compose: 'Compose', light: 'Switch to light mode', dark: 'Switch to dark mode',
   notice: 'Announcements', profile: 'Account: ', inbox: 'Letters find their home here.',
-  unifiedInbox: 'Incoming mail from all your addresses.',
+  allMail: 'Browse and filter all mail.',
   sent: 'Letters on their way.', draft: 'A letter in the making.', star: 'Letters worth keeping close.',
   setting: 'Arrange your little post office.', management: 'Your domains, addresses and people.'
 } : {
   navigation: '切换导航栏', compose: '写邮件', light: '切换浅色模式', dark: '切换深色模式',
   notice: '查看公告', profile: '账号：', inbox: '每一封来信，都有归处。',
-  unifiedInbox: '汇总所有邮箱的收件邮件',
+  allMail: '集中查看与筛选全部邮件',
   sent: '寄出的心意，都留在这里。', draft: '一封信，正在酝酿。', star: '值得珍藏的信，随手可见。',
   setting: '布置你的专属邮局。', management: '管理你的域名、地址与成员。'
 })
 const pageDescription = computed(() => {
   const name = route.meta.name
-  if (name === 'unified-inbox') return copy.value.unifiedInbox
-  if (name === 'content' && uiStore.messageSource === 'unified-inbox') {
-    return emailStore.contentData.email?.toEmail || copy.value.unifiedInbox
+  if (name === 'all-email') return copy.value.allMail
+  if (name === 'content' && ['all-email', 'unified-inbox'].includes(uiStore.messageSource)) {
+    return emailStore.contentData.email?.toEmail || copy.value.allMail
   }
   if (['content', 'email', 'send'].includes(name) && currentAddress.value) return currentAddress.value
   const copyName = name === 'email' ? 'inbox' : (name === 'send' ? 'sent' : name)

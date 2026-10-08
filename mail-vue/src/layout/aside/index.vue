@@ -67,7 +67,11 @@ const accountStore = useAccountStore()
 const userStore = useUserStore()
 const route = useRoute()
 const { locale } = useI18n()
-const activeName = computed(() => route.meta.name === 'content' ? uiStore.messageSource : route.meta.name)
+const activeName = computed(() => {
+  const name = route.meta.name === 'content' ? uiStore.messageSource : route.meta.name
+  // Keep the navigation selected for details opened before the unified inbox was removed.
+  return name === 'unified-inbox' ? (hasPerm('all-email:query') ? 'all-email' : 'email') : name
+})
 const brandTitle = computed(() => settingStore.settings.title || 'Omi Mail')
 const domains = computed(() => [...new Set((settingStore.domainList.length ? settingStore.domainList : settingStore.settings.domainList || [])
   .map(domain => String(domain).replace(/^@/, '')))])
@@ -87,7 +91,7 @@ const copy = computed(() => {
   }
 })
 const mailboxItems = computed(() => [
-  { name: 'unified-inbox', label: 'allInboxes', icon: 'lucide:layers' },
+  { name: 'all-email', label: 'allMail', icon: 'lucide:mails', perm: 'all-email:query' },
   { name: 'email', label: 'inbox', icon: 'lucide:inbox' },
   { name: 'send', label: 'sent', icon: 'lucide:send', perm: 'email:send' },
   { name: 'draft', label: 'drafts', icon: 'lucide:file-pen-line', perm: 'email:send' },
@@ -97,7 +101,6 @@ const mailboxItems = computed(() => [
 const managementItems = computed(() => [
   { name: 'analysis', label: 'analytics', icon: 'lucide:chart-pie', perm: 'analysis:query' },
   { name: 'user', label: 'allUsers', icon: 'lucide:users', perm: 'user:query' },
-  { name: 'all-email', label: 'allMail', icon: 'lucide:mails', perm: 'all-email:query' },
   { name: 'role', label: 'permissions', icon: 'lucide:shield-check', perm: 'role:query' },
   { name: 'reg-key', label: 'inviteCode', icon: 'lucide:key-round', perm: 'reg-key:query' },
   { name: 'sys-setting', label: 'SystemSettings', icon: 'lucide:settings', perm: 'setting:query' }

@@ -2,6 +2,7 @@ import {createRouter, createWebHistory} from 'vue-router'
 import NProgress from 'nprogress';
 import {useUiStore} from "@/store/ui.js";
 import {useSettingStore} from "@/store/setting.js";
+import {useUserStore} from "@/store/user.js";
 import {cvtR2Url} from "@/utils/convert.js";
 
 const routes = [
@@ -13,13 +14,10 @@ const routes = [
         children: [
             {
                 path: '/all-inboxes',
-                name: 'unified-inbox',
-                component: () => import('@/views/email/index.vue'),
-                props: { allMailboxes: true },
-                meta: {
-                    title: 'allInboxes',
-                    name: 'unified-inbox',
-                    menu: true
+                redirect: () => {
+                    const {permKeys = []} = useUserStore().user;
+                    const canViewAllMail = permKeys.includes('*') || permKeys.includes('all-email:query');
+                    return {name: canViewAllMail && router.hasRoute('all-email') ? 'all-email' : 'email'};
                 }
             },
             {

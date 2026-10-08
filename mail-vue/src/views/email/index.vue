@@ -9,7 +9,7 @@
                :time-sort="params.timeSort"
                :email-read="emailRead"
                :show-unread="true"
-               :show-account-icon="!allMailboxes"
+               :show-account-icon="true"
                actionLeft="4px"
                @jump="jumpContent"
   >
@@ -39,9 +39,6 @@ defineOptions({
   name: 'email'
 })
 
-const props = defineProps({
-  allMailboxes: { type: Boolean, default: false }
-})
 const route = useRoute();
 const {locale} = useI18n();
 const sortLabel = computed(() => locale.value?.startsWith('en') ? (params.timeSort ? 'Oldest first · switch to newest first' : 'Newest first · switch to oldest first') : (params.timeSort ? '旧邮件优先 · 切换为最新优先' : '最新邮件优先 · 切换为旧邮件优先'));
@@ -57,13 +54,13 @@ const params = reactive({
   timeSort: 0,
 })
 const listScope = computed(() => ({
-  accountId: props.allMailboxes ? 0 : accountStore.currentAccountId,
-  allReceive: props.allMailboxes ? 1 : (accountStore.currentAccount.allReceive ?? 0)
+  accountId: accountStore.currentAccountId,
+  allReceive: accountStore.currentAccount.allReceive ?? 0
 }));
-const scopeKey = computed(() => `${props.allMailboxes ? 'all' : 'single'}:${listScope.value.accountId}:${listScope.value.allReceive}`);
+const scopeKey = computed(() => `${listScope.value.accountId}:${listScope.value.allReceive}`);
 let lastRequestScopeKey;
 
-// Both inbox routes share one cached list; scope changes invalidate its results.
+// Mailbox changes invalidate the cached list, including requests still loading.
 function activateList() {
   active = true;
   emailStore.emailScroll = scroll;
@@ -125,7 +122,7 @@ function scheduleLatest() {
 
 async function latest(generation) {
   try {
-    const expectedRoute = props.allMailboxes ? 'unified-inbox' : 'email';
+    const expectedRoute = 'email';
     if (disposed || !active || route.name !== expectedRoute || generation !== pollGeneration) return;
     const currentList = scroll.value;
     if (!currentList || currentList.firstLoad) return;
